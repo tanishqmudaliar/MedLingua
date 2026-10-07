@@ -1,0 +1,20 @@
+:root { font-family: Arial, sans-serif; color: #172033; background: #f6f8fb; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 1100px; margin: 0 auto; padding: 32px 20px; }
+form, section { display: grid; gap: 12px; }
+input, button { padding: 10px; font: inherit; }
+button { cursor: pointer; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.card { background: white; border: 1px solid #dfe5ef; border-radius: 8px; padding: 18px; margin-top: 18px; }
+.error { color: #b42318; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.app-shell { min-height: 100vh; }
+.workspace { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
+.sidebar { background: white; border: 1px solid #dfe5ef; border-radius: 8px; padding: 16px; position: sticky; top: 20px; }
+.sidebar nav { display: grid; gap: 6px; }
+.document-link { background: transparent; border: 1px solid transparent; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.document-link:hover, .document-link.selected { background: #eef4ff; border-color: #b9cef5; }
+.content-panel { min-width: 0; }
+.danger { color: #b42318; border: 1px solid #f0b4ae; background: #fff7f6; }
+@media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } .sidebar { position: static; } }
