@@ -53,8 +53,10 @@ async def signup(payload: UserCreate, response: Response, db: AsyncSession = Dep
 @app.post("/auth/login", response_model=UserRead)
 async def login(payload: UserLogin, response: Response, db: AsyncSession = Depends(get_db)) -> User:
     user = await db.scalar(select(User).where(User.username == payload.username))
-    if user is None or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+    if user is None:
+        raise HTTPException(status_code=404, detail="Account not found. Sign up to create your account.")
+    if not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect password")
     response.set_cookie("access_token", create_access_token(user.id), httponly=True, samesite="lax", max_age=settings.jwt_expire_minutes * 60)
     return user
 

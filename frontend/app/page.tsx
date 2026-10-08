@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { api, Document, User } from "../lib/api";
+import { api, ApiError, Document, User } from "../lib/api";
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -28,7 +28,14 @@ export default function Home() {
     try {
       const nextUser = mode === "login" ? await api.login({ username: String(data.username), password: String(data.password) }) : await api.signup({ username: String(data.username), name: String(data.name), email: String(data.email), password: String(data.password) });
       setUser(nextUser);
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to authenticate"); } finally { setBusy(false); }
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        setMode("signup");
+        setError("Account not found. Sign up to create your account.");
+      } else {
+        setError(e instanceof Error ? e.message : "Unable to authenticate");
+      }
+    } finally { setBusy(false); }
   }
 
   async function upload(event: FormEvent<HTMLFormElement>) {
