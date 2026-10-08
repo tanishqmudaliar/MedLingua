@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 
 from .config import get_settings
@@ -27,5 +28,5 @@ def decode_user_id(token: str) -> UUID | None:
     try:
         payload = jwt.decode(token, get_settings().jwt_secret_key, algorithms=["HS256"])
         return UUID(payload["sub"])
-    except (JWTError, KeyError, ValueError):
+    except (InvalidTokenError, KeyError, TypeError, ValueError):
         return None
