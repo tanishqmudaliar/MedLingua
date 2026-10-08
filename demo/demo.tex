@@ -1,39 +1,30 @@
 \documentclass[11pt]{article}
-\usepackage[margin=0.9in]{geometry}
+\usepackage[margin=1in]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{lmodern}
 \usepackage{microtype}
 \usepackage{enumitem}
-\usepackage{longtable}
 \usepackage{xcolor}
+\usepackage{titlesec}
 
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{0.4em}
-\setlength{\LTpre}{0pt}
-\setlength{\LTpost}{0pt}
-\renewcommand{\arraystretch}{1.1}
+\setlength{\parskip}{0.55em}
 
 \definecolor{cmtcolor}{RGB}{40,70,140}
 
-% Column widths (left = note text, right = teaching comments)
-\newlength{\leftw}\setlength{\leftw}{0.60\textwidth}
-\newlength{\rightw}\setlength{\rightw}{0.35\textwidth}
+\titleformat{\section}{\large\bfseries}{}{0pt}{}[\vspace{-0.6em}\rule{\textwidth}{0.4pt}]
+\titlespacing*{\section}{0pt}{1.4em}{0.6em}
 
-% Comment style
-\newcommand{\cm}[1]{{\small\itshape\color{cmtcolor}#1}}
+% Teaching comment, shown as an indented blue italic note beneath the text it refers to
+\newcommand{\cm}[1]{%
+  \par\nopagebreak\vspace{-0.2em}%
+  \begingroup\small\itshape\color{cmtcolor}%
+  \hangindent=2em \hangafter=0 \hspace*{1.2em}\textbf{Comment:} #1\par%
+  \endgroup}
 
-% \row{main text}{comment}
-\newcommand{\row}[2]{#1 & \cm{#2}\\[5pt]}
-
-% Section heading row spanning both columns
-\newcommand{\sect}[1]{%
-  \multicolumn{2}{@{}l@{}}{\rule{0pt}{2.2ex}\large\bfseries #1}\\[-1pt]
-  \multicolumn{2}{@{}l@{}}{\rule[0.4ex]{\textwidth}{0.4pt}}\\[3pt]\nopagebreak}
-
-% Subsection heading row
-\newcommand{\subsect}[1]{%
-  \multicolumn{2}{@{}l@{}}{\rule{0pt}{2ex}\bfseries #1}\\[2pt]\nopagebreak}
+% Sub-label (e.g., "Surgical", "Vital Signs")
+\newcommand{\lbl}[1]{\textbf{#1}\par\nopagebreak}
 
 \begin{document}
 
@@ -42,278 +33,231 @@
   {\large History and Physical Examination Comments}
 \end{center}
 
-\begin{longtable}{@{}p{\leftw}@{\hspace{1.2em}}p{\rightw}@{}}
+% ------------------------------------------------------------
+\textbf{Patient Name:} Rogers, Pamela\\
+\textbf{Date:} 6/2/04\\
+\textbf{Referral Source:} Emergency Department\\
+\textbf{Data Source:} Patient
+
+\textbf{Chief Complaint \& ID:} Ms.\ Rogers is a 56 y/o WF who has been having chest pains for the last week.
+\cm{Define the reason for the patient's visit as specifically as possible.}
 
 % ------------------------------------------------------------
-\row{%
-  \textbf{Patient Name:} Rogers, Pamela\par
-  \textbf{Date:} 6/2/04\par
-  \textbf{Referral Source:} Emergency Department\par
-  \textbf{Data Source:} Patient}{}
+\section*{History of Present Illness}
 
-\row{%
-  \textbf{Chief Complaint \& ID:} Ms.\ Rogers is a 56 y/o WF who has been having chest pains for the last week.}{%
-  Define the reason for the patient's visit as specifically as possible.}
+This is the first admission for this 56 year old woman, who states she was in her usual state of good health until one week prior to admission.
+\cm{Convey the acute or chronic nature of the problem and establish a chronology.}
 
-% ------------------------------------------------------------
-\sect{History of Present Illness}
+At that time she noticed the abrupt onset (over a few seconds to a minute) of chest pain which she describes as dull and aching in character. The pain began in the left para-sternal area and radiated up to her neck.
+\cm{onset; character; location; radiation}
 
-\row{%
-  This is the first admission for this 56 year old woman, who states she was in her usual state of good health until one week prior to admission.}{%
-  Convey the acute or chronic nature of the problem and establish a chronology.}
+The first episode of pain one week ago occurred when she was working in her garden in the middle of the day. She states she had been working for approximately 45 minutes and began to feel tired before the onset of the pain.
+\cm{circumstances; exacerbating factors}
 
-\row{%
-  At that time she noticed the abrupt onset (over a few seconds to a minute) of chest pain which she describes as dull and aching in character. The pain began in the left para-sternal area and radiated up to her neck.}{%
-  onset\par character\par location\par radiation}
+Her discomfort was accompanied by shortness of breath, but no sweating, nausea, or vomiting.
+\cm{associated symptoms}
 
-\row{%
-  The first episode of pain one week ago occurred when she was working in her garden in the middle of the day. She states she had been working for approximately 45 minutes and began to feel tired before the onset of the pain.}{%
-  circumstances; exacerbating factors}
+The pain lasted approximately 5 to 10 minutes and resolved when she went inside and rested in a cool area.
+\cm{duration; resolution; alleviating factors}
 
-\row{%
-  Her discomfort was accompanied by shortness of breath, but no sweating, nausea, or vomiting.}{%
-  associated symptoms}
+Since that initial pain one week ago she has had 2 additional episodes of pain, similar in quality and location to the first episode.
+\cm{Describe the natural history of her problem since its onset}
 
-\row{%
-  The pain lasted approximately 5 to 10 minutes and resolved when she went inside and rested in a cool area.}{%
-  duration\par resolution; alleviating factors}
+Three days ago she had a 15 minute episode of pain while walking her dog, which resolved with rest.
+\cm{Change or new circumstances to the problem}
 
-\row{%
-  Since that initial pain one week ago she has had 2 additional episodes of pain, similar in quality and location to the first episode.}{%
-  Describe the natural history of her problem since its onset}
+This evening she had an episode of pain awaken her from sleep, lasting 30 minutes, which prompted her visit to the Emergency Department.
+\cm{New duration; Reason she come in for visit}
 
-\row{%
-  Three days ago she had a 15 minute episode of pain while walking her dog, which resolved with rest.}{%
-  Change or new circumstances to the problem}
+At no time has she attempted any specific measures to relieve her pain, other than rest.
+\cm{What has patient tried for relief}
 
-\row{%
-  This evening she had an episode of pain awaken her from sleep, lasting 30 minutes, which prompted her visit to the Emergency Department.}{%
-  New duration\par Reason she come in for visit}
+She describes no other associated symptoms during these episodes of pain, including dizziness, or palpitations. She becomes short of breath during these episodes but describes no other exertional dyspnea, orthopnea, or paroxysmal nocturnal dyspnea.
+\cm{Relevant positive and negative ROS for this complaint}
 
-\row{%
-  At no time has she attempted any specific measures to relieve her pain, other than rest.}{%
-  What has patient tried for relief}
+No change in the pain with movement, no association with food, no GERD sx, no palpable pain. She has never been told she has heart problems, never had any chest pains before, does not have claudication. She was diagnosed with HTN 3 years ago,
+\cm{Review of systems for the relevant organ system}
 
-\row{%
-  She describes no other associated symptoms during these episodes of pain, including dizziness, or palpitations. She becomes short of breath during these episodes but describes no other exertional dyspnea, orthopnea, or paroxysmal nocturnal dyspnea.}{%
-  Relevant positive and negative ROS for this complaint}
-
-\row{%
-  No change in the pain with movement, no association with food, no GERD sx, no palpable pain. She has never been told she has heart problems, never had any chest pains before, does not have claudication. She was diagnosed with HTN 3 years ago,}{%
-  Review of systems for the relevant organ system}
-
-\row{%
-  She does not smoke nor does she have diabetes. She was diagnosed with hypertension 3 years ago and had a TAH with BSO 6 years ago. She is not on hormone replacement therapy. There is a family history of premature CAD. She does not know her cholesterol level.}{%
-  Relevant risk factor/environmental conditions}
+She does not smoke nor does she have diabetes. She was diagnosed with hypertension 3 years ago and had a TAH with BSO 6 years ago. She is not on hormone replacement therapy. There is a family history of premature CAD. She does not know her cholesterol level.
+\cm{Relevant risk factor/environmental conditions}
 
 % ------------------------------------------------------------
-\sect{Past Medical History}
+\section*{Past Medical History}
 
-\row{%
-  \textbf{Surgical} --\par
-  1994: Total abdominal hysterectomy and bilateral oophorectomy for uterine fibroids.\par
-  1998: Bunionectomy}{%
-  This highly relevant, although it may seem like a trivial detail at first}
+\lbl{Surgical --}
+1994: Total abdominal hysterectomy and bilateral oophorectomy for uterine fibroids.\\
+1998: Bunionectomy
+\cm{This highly relevant, although it may seem like a trivial detail at first}
 
-\row{%
-  \textbf{Medical History} --\par
-  1998: Diagnosed with hypertension and began on unknown medication. Stopped after 6 months because of drowsiness.\par
-  1990: Diagnosed with peptic ulcer disease, which resolved after three months on cimetidine. She describes no history of cancer, lung disease or previous heart disease.}{%
-  Always use generic names}
+\lbl{Medical History --}
+1998: Diagnosed with hypertension and began on unknown medication. Stopped after 6 months because of drowsiness.\\
+1990: Diagnosed with peptic ulcer disease, which resolved after three months on cimetidine. She describes no history of cancer, lung disease or previous heart disease.
+\cm{Always use generic names}
 
-\row{%
-  \textbf{Allergy:} Penicillin; experienced rash and hives in 1985.}{%
-  Always list the type of reported reaction}
+\textbf{Allergy:} Penicillin; experienced rash and hives in 1985.
+\cm{Always list the type of reported reaction}
 
-\row{%
-  \textbf{Social History} --\par
-  \textbf{Alcohol use:} 1 or 2 beers each weekend; 1 glass of wine once a week with dinner.\par
-  \textbf{Tobacco use:} None.}{%
-  Quantity}
+\lbl{Social History --}
+\textbf{Alcohol use:} 1 or 2 beers each weekend; 1 glass of wine once a week with dinner.
+\cm{Quantity}
 
-\row{%
-  \textbf{Medications:} No prescription or illegal drug use. Occasional OTC ibuprofen (Advil) for headache (QOD).}{%
-  Include over-the-counter drugs}
+\textbf{Tobacco use:} None.
+
+\textbf{Medications:} No prescription or illegal drug use. Occasional OTC ibuprofen (Advil) for headache (QOD).
+\cm{Include over-the-counter drugs}
 
 % ------------------------------------------------------------
-\sect{Family History}
+\section*{Family History}
 
-\row{%
-  \textbf{Mother:} 79, alive and well.\par
-  \textbf{Father:} 54, deceased, heart attack. No brothers or sisters. There is a positive family history of hypertension, but no diabetes, or cancer.}{%
-  Comment specifically on the presence or absence of diseases relevant to the chief complaint}
-
-% ------------------------------------------------------------
-\sect{Review of Systems}
-
-\row{%
-  \textbf{HEENT:}\par
-  No complaints of headache change in vision, nose or ear problems, or sore throat.}{%
-  Separate each ROS section for easy identification}
-
-\row{%
-  \textbf{Cadiovascular:}\par
-  See HPI}{%
-  OK to refer to HPI if adequately covered there}
-
-\row{%
-  \textbf{Gastrointestinal:}\par
-  No complaints of dysphagia, nausea, vomiting, or change in stool pattern, consistency, or color. She complains of epigastric pain, burning in quality, approximately twice a month, which she notices primarily at night.}{%
-  List positive and negative findings in brief, concise phrases or sentences}
-
-\row{%
-  \textbf{Genitourinary:}\par
-  No complaints of dysuria, nocturia, polyuria, hematuria, or vaginal bleeding.}{}
-
-\row{%
-  \textbf{Musculoskeletal:}\par
-  She complains of lower back pain, aching in quality, approximately once every week after working in her garden. This pain is usually relieved with Tylenol. She complains of no other arthralgias, muscle aches, or pains.}{}
-
-\row{%
-  \textbf{Neurological:}\par
-  She complains of no weakness, numbness, or incoordination.}{}
+\textbf{Mother:} 79, alive and well.\\
+\textbf{Father:} 54, deceased, heart attack. No brothers or sisters. There is a positive family history of hypertension, but no diabetes, or cancer.
+\cm{Comment specifically on the presence or absence of diseases relevant to the chief complaint}
 
 % ------------------------------------------------------------
-\sect{Physical Examination}
+\section*{Review of Systems}
 
-\row{%
-  \textbf{Vital Signs:}\par
-  Blood Pressure 168/98, Pulse 90, Respirations 20, Temperature 37 degrees.}{%
-  Always list vital signs. Check for orthostatic BP/P changes if it is relevant to the patient's complaint}
+\lbl{HEENT:}
+No complaints of headache change in vision, nose or ear problems, or sore throat.
+\cm{Separate each ROS section for easy identification}
 
-\row{%
-  \textbf{General:}\par
-  Ms.\ Rogers appears alert, oriented and cooperative.}{%
-  Description may give very important clues as to the nature or severity of the patient's problem}
+\lbl{Cadiovascular:}
+See HPI
+\cm{OK to refer to HPI if adequately covered there}
 
-\row{%
-  \textbf{Skin:}\par
-  Normal in appearance, texture, and temperature}{%
-  Comment on all organ systems}
+\lbl{Gastrointestinal:}
+No complaints of dysphagia, nausea, vomiting, or change in stool pattern, consistency, or color. She complains of epigastric pain, burning in quality, approximately twice a month, which she notices primarily at night.
+\cm{List positive and negative findings in brief, concise phrases or sentences}
 
-\row{%
-  \textbf{HEENT:}\par
-  Scalp normal.\par
-  Pupils equally round, 4 mm, reactive to light and accommodation, sclera and conjunctiva normal. Fundoscopic examination reveals normal vessels without hemorrhage.\par
-  Tympanic membranes and external auditory canals normal. Nasal mucosa normal. Oral pharynx is normal without erythema or exudate. Tongue and gums are normal.}{%
-  List specific normal or pathological findings when relevant to the patient's complaint}
+\lbl{Genitourinary:}
+No complaints of dysuria, nocturia, polyuria, hematuria, or vaginal bleeding.
 
-\row{%
-  \textbf{Neck:}\par
-  Easily moveable without resistance, no abnormal adenopathy in the cervical or supraclavicular areas. Trachea is midline and thyroid gland is normal without masses. Carotid artery upstroke is normal bilaterally without bruits. Jugular venous pressure is measured as 8 cm with patient at 45 degrees.}{}
+\lbl{Musculoskeletal:}
+She complains of lower back pain, aching in quality, approximately once every week after working in her garden. This pain is usually relieved with Tylenol. She complains of no other arthralgias, muscle aches, or pains.
 
-\row{%
-  \textbf{Chest:}\par
-  Lungs are clear to auscultation and percussion bilaterally except for crackles heard in the lung bases bilaterally. PMI is in the 5th inter-costal space at the mid clavicular line. A grade 2/6 systolic decrescendo murmur is heard best at the second right inter-costal space which radiates to the neck. A third heard sound is heard at the apex. No fourth heart sound or rub are heard. Cystic changes are noted in the breasts bilaterally but no masses or nipple discharge is Seen.}{%
-  This patient needs a detailed cardiac examination}
-
-\row{%
-  \textbf{Abdomen:}\par
-  The abdomen is symmetrical without distention; bowel sounds are normal in quality and intensity in all areas; a bruit is heard in the right paraumbilical area. No masses or splenomegaly are noted; liver span is 8 cm by percussion.}{%
-  More precise than saying ``no hepatomegaly''}
-
-\row{%
-  \textbf{Extremities:}\par
-  No cyanosis, clubbing, or edema are noted. Peripheral pulses in the femoral, popliteal, anterior tibial, dorsalis pedis, brachial, and radial areas are normal.}{}
-
-\row{%
-  \textbf{Nodes:}\par
-  No palpable nodes in the cervical, supraclavicular, axillary or inguinal areas.}{}
-
-\row{%
-  \textbf{Genital/Rectal:}\par
-  Normal rectal sphincter tone; no rectal masses or tenderness. Stool is brown and guaiac negative. Pelvic exmaination reveals normal external genitalia, and normal vagina and cervix on speculum examination. Bimanual examination reveals no palpable uterus, ovaries, or masses.}{%
-  Always include these exams, or comment specifically why they were omitted}
-
-\row{%
-  \textbf{Neurological:}\par
-  Cranial nerves II-XII are normal. Motor and sensory examination of the upper and lower extremities is normal. Gait and cerebellar function are also normal. Reflexes are normal and symmetrical bilaterally in both extremities.}{}
+\lbl{Neurological:}
+She complains of no weakness, numbness, or incoordination.
 
 % ------------------------------------------------------------
-\sect{Initial Problem List}
+\section*{Physical Examination}
 
-\row{%
-  \begin{enumerate}[nosep,leftmargin=*,label=\arabic*.]
-    \item Chest Pain
-    \item Dyspnea
-    \item History of HTN (4 years)
-    \item History of TAH/BSO
-    \item History of peptic ulcer disease
-    \item Penicillin allergy
-    \item FH of early ASCVD
-    \item Epigastric pain
-    \item Low back pain
-    \item Hypertension
-    \item Systolic murmur
-    \item Cystic changes of breasts
-    \item Abdominal bruit
-  \end{enumerate}}{%
-  Although you can omit this initial problem list from your final written H\&P, (and just list a final problem list shown below), it is useful to make an initial list simply to keep track of all problems uncovered in the interview (\#1-9 in this list) and exam (\#10-13)}
+\lbl{Vital Signs:}
+Blood Pressure 168/98, Pulse 90, Respirations 20, Temperature 37 degrees.
+\cm{Always list vital signs. Check for orthostatic BP/P changes if it is relevant to the patient's complaint}
 
-\sect{Revised Problem List}
+\lbl{General:}
+Ms.\ Rogers appears alert, oriented and cooperative.
+\cm{Description may give very important clues as to the nature or severity of the patient's problem}
 
-\row{%
-  \begin{enumerate}[nosep,leftmargin=*,label=\arabic*.]
-    \item Chest pain
-    \item FH of early ASCVD
-    \item Early surgical menopause
-    \item Dyspnea
-    \item Recent onset HTN
-    \item Abdominal bruit
-    \item Systolic ejection murmur
-    \item Epigastric pain
-    \item History of peptic ulcer disease
-    \item Lumbosacral back pain
-    \item OTC non-steroidal analgesic use
-    \item Cystic changes of breasts
-    \item Penicillin allergy
-  \end{enumerate}}{%
-  This list regroups related problems (or those you suspect are related) into a more logical sequence}
+\lbl{Skin:}
+Normal in appearance, texture, and temperature
+\cm{Comment on all organ systems}
 
-% ------------------------------------------------------------
-\sect{Assessment and Differential Diagnosis}
+\lbl{HEENT:}
+Scalp normal.
 
-\row{%
-  \textbf{1. Chest pain with features of angina pectoris}\par
-  This patient's description of dull, aching, exertion related substernal chest pain is suggestive of ischemic cardiac origin. Her findings of a FH of early ASCVD, hypertension, and early surgical menopause are pertinent risk factors for development of coronary artery disease. Therefore, the combination of this patient's presentation, and the multiple risk factors make angina pectoris the most likely diagnosis. The pain symptoms appear to be increasing, and the occurrence of pain at rest suggests this fits the presentation of unstable angina, and hospitalization is indicated.}{%
-  In the assessment you take each of the patient's major problems and draw conclusions, in this case that the chest pain is more likely due to ischemic heart disease instead of other possibilities. You tie in several of the other problems as risk factors for ischemic heart disease, and not merely as random unrelated problems. You should list and extensive justification for your most likely diagnosis. You should also explain why you are less suspicious of alternative diagnoses, such as esophageal reflux disease, pulmonary or musculoskeletal pain.}
+Pupils equally round, 4 mm, reactive to light and accommodation, sclera and conjunctiva normal. Fundoscopic examination reveals normal vessels without hemorrhage.
 
-\row{%
-  Other processes may explain her chest pain, but are less likely. Gastro-esophageal reflux disease (GERD) may occur at night with recumbency, but usually is not associated with exertion. The pain of GERD is usually burning, and the patient describes no associated gastrointestinal symptoms such as nausea, vomiting or abdominal pain which might suggest peptic ulcer disease. The presence of dyspnea might suggest a pulmonary component to this patient's disease process, but the absence of fever, cough or abnormal pulmonary examination findings make a pulmonary infection less likely, and the association of the dyspnea with the chest pain supports the theory that both symptoms may be from ischemic heart disease.}{}
+Tympanic membranes and external auditory canals normal. Nasal mucosa normal. Oral pharynx is normal without erythema or exudate. Tongue and gums are normal.
+\cm{List specific normal or pathological findings when relevant to the patient's complaint}
 
-\row{%
-  \textbf{2. Dyspnea}\par
-  Her dyspnea may correlate with findings on physical exam of a third heart sound and pulmonary crackles, suggesting left ventricular dysfunction. In that case, she may be manifesting symptoms and findings of congestive heart failure from myocardial ischemia.}{%
-  As in the previous problem, you should explain, in more detail than is shown in this example, why you felt the dyspnea is more likely to be from ischemic heart disease, and not asthma, bronchitis, or other possibilities. Follow this pattern for all subsequent problems.}
+\lbl{Neck:}
+Easily moveable without resistance, no abnormal adenopathy in the cervical or supraclavicular areas. Trachea is midline and thyroid gland is normal without masses. Carotid artery upstroke is normal bilaterally without bruits. Jugular venous pressure is measured as 8 cm with patient at 45 degrees.
 
-\row{%
-  \textbf{3. Recent onset hypertension and abdominal bruit}\par
-  This combination raises the possibility of a secondary cause of hypertension, specifically ASCVD of the renal artery leading to renovascular hypertension. The lack of hypertensive retinopathy and left ventricular hypertrophy on physical examination further support a recent onset of her BP elevation.}{}
+\lbl{Chest:}
+Lungs are clear to auscultation and percussion bilaterally except for crackles heard in the lung bases bilaterally. PMI is in the 5th inter-costal space at the mid clavicular line. A grade 2/6 systolic decrescendo murmur is heard best at the second right inter-costal space which radiates to the neck. A third heard sound is heard at the apex. No fourth heart sound or rub are heard. Cystic changes are noted in the breasts bilaterally but no masses or nipple discharge is Seen.
+\cm{This patient needs a detailed cardiac examination}
 
-\row{%
-  \textbf{4. Systolic murmur}\par
-  The possibility of important valvular heart disease is raised by the murmur, specifically, aortic stenosis. The murmur radiates to the neck as an aortic valvular murmur often does, but a normal carotid upstroke may mean this murmur is not significant.}{}
+\lbl{Abdomen:}
+The abdomen is symmetrical without distention; bowel sounds are normal in quality and intensity in all areas; a bruit is heard in the right paraumbilical area. No masses or splenomegaly are noted; liver span is 8 cm by percussion.
+\cm{More precise than saying ``no hepatomegaly''}
 
-\row{%
-  \textbf{5. Epigastric discomfort, NSAID use with a history of peptic ulcer disease.}\par
-  \textbf{6. Lumbo-sacral back pain}\par
-  \textbf{7. Fibrocystic breast disease}\par
-  \textbf{8. Penicillin allergy}}{}
+\lbl{Extremities:}
+No cyanosis, clubbing, or edema are noted. Peripheral pulses in the femoral, popliteal, anterior tibial, dorsalis pedis, brachial, and radial areas are normal.
+
+\lbl{Nodes:}
+No palpable nodes in the cervical, supraclavicular, axillary or inguinal areas.
+
+\lbl{Genital/Rectal:}
+Normal rectal sphincter tone; no rectal masses or tenderness. Stool is brown and guaiac negative. Pelvic exmaination reveals normal external genitalia, and normal vagina and cervix on speculum examination. Bimanual examination reveals no palpable uterus, ovaries, or masses.
+\cm{Always include these exams, or comment specifically why they were omitted}
+
+\lbl{Neurological:}
+Cranial nerves II-XII are normal. Motor and sensory examination of the upper and lower extremities is normal. Gait and cerebellar function are also normal. Reflexes are normal and symmetrical bilaterally in both extremities.
 
 % ------------------------------------------------------------
-\sect{Plan}
+\section*{Initial Problem List}
 
-\row{%
-  \begin{enumerate}[leftmargin=*,label=\arabic*.,itemsep=3pt,topsep=0pt,parsep=0pt]
-    \item Carefully monitor the patient for any increased chest pain that might be indicative of impending myocardial infarction by admitting the patient to the telemetry floor.
-    \item Start platelet inhibitors, such as aspirin to decrease the risk of myocardial infarction; start nitrates to decrease the risk of occlusion and to treat her symptoms of pain. For prolonged pain unresponsive to nitrates, she may need an analgesic such as morphine. The nitrates will also help to lower her BP.
-    \item Patient should have her cholesterol monitored and when discharged she should be started on an appropriate exercise and weight loss program, including a low-fat diet. If her cholesterol is elevated, she may need cholesterol-lowering medication such as HMG Co-reductases.
-    \item Schedule a cardiac catheterization since non-invasive tests have a high pretest probability for being positive and regardless of the result, negative or positive, she will need a cath
-    \item Begin diuretics for her dyspnea which is most likely secondary to volume overload -- this will treat her high BP as well. She should have a ventriculogram with the cath that will assess cardiac size and presence of wall motion abnormalities.
-    \item Appropriate lab work would include BUN/Creatinine to assess kidney function, electrolytes and baseline EKG.
-  \end{enumerate}}{%
-  You should develop a diagnostic and therapeutic plan for the patient. Your plan should incorporate acute and long-term care of the patient's most likely problem. You should consider pharmacologic and non-pharmacologic measures and be cognizant of the fact that you need to treat the symptoms (i.e.\ make the patient comfortable) as much as treating the disease when possible. You are expected to know the usual classes of medications used to treat these illnesses.}
+\begin{enumerate}[nosep,leftmargin=2em,label=\arabic*.]
+  \item Chest Pain
+  \item Dyspnea
+  \item History of HTN (4 years)
+  \item History of TAH/BSO
+  \item History of peptic ulcer disease
+  \item Penicillin allergy
+  \item FH of early ASCVD
+  \item Epigastric pain
+  \item Low back pain
+  \item Hypertension
+  \item Systolic murmur
+  \item Cystic changes of breasts
+  \item Abdominal bruit
+\end{enumerate}
+\cm{Although you can omit this initial problem list from your final written H\&P, (and just list a final problem list shown below), it is useful to make an initial list simply to keep track of all problems uncovered in the interview (\#1-9 in this list) and exam (\#10-13)}
 
-\end{longtable}
+\section*{Revised Problem List}
+
+\begin{enumerate}[nosep,leftmargin=2em,label=\arabic*.]
+  \item Chest pain
+  \item FH of early ASCVD
+  \item Early surgical menopause
+  \item Dyspnea
+  \item Recent onset HTN
+  \item Abdominal bruit
+  \item Systolic ejection murmur
+  \item Epigastric pain
+  \item History of peptic ulcer disease
+  \item Lumbosacral back pain
+  \item OTC non-steroidal analgesic use
+  \item Cystic changes of breasts
+  \item Penicillin allergy
+\end{enumerate}
+\cm{This list regroups related problems (or those you suspect are related) into a more logical sequence}
+
+% ------------------------------------------------------------
+\section*{Assessment and Differential Diagnosis}
+
+\lbl{1. Chest pain with features of angina pectoris}
+This patient's description of dull, aching, exertion related substernal chest pain is suggestive of ischemic cardiac origin. Her findings of a FH of early ASCVD, hypertension, and early surgical menopause are pertinent risk factors for development of coronary artery disease. Therefore, the combination of this patient's presentation, and the multiple risk factors make angina pectoris the most likely diagnosis. The pain symptoms appear to be increasing, and the occurrence of pain at rest suggests this fits the presentation of unstable angina, and hospitalization is indicated.
+
+Other processes may explain her chest pain, but are less likely. Gastro-esophageal reflux disease (GERD) may occur at night with recumbency, but usually is not associated with exertion. The pain of GERD is usually burning, and the patient describes no associated gastrointestinal symptoms such as nausea, vomiting or abdominal pain which might suggest peptic ulcer disease. The presence of dyspnea might suggest a pulmonary component to this patient's disease process, but the absence of fever, cough or abnormal pulmonary examination findings make a pulmonary infection less likely, and the association of the dyspnea with the chest pain supports the theory that both symptoms may be from ischemic heart disease.
+\cm{In the assessment you take each of the patient's major problems and draw conclusions, in this case that the chest pain is more likely due to ischemic heart disease instead of other possibilities. You tie in several of the other problems as risk factors for ischemic heart disease, and not merely as random unrelated problems. You should list and extensive justification for your most likely diagnosis. You should also explain why you are less suspicious of alternative diagnoses, such as esophageal reflux disease, pulmonary or musculoskeletal pain.}
+
+\lbl{2. Dyspnea}
+Her dyspnea may correlate with findings on physical exam of a third heart sound and pulmonary crackles, suggesting left ventricular dysfunction. In that case, she may be manifesting symptoms and findings of congestive heart failure from myocardial ischemia.
+\cm{As in the previous problem, you should explain, in more detail than is shown in this example, why you felt the dyspnea is more likely to be from ischemic heart disease, and not asthma, bronchitis, or other possibilities. Follow this pattern for all subsequent problems.}
+
+\lbl{3. Recent onset hypertension and abdominal bruit}
+This combination raises the possibility of a secondary cause of hypertension, specifically ASCVD of the renal artery leading to renovascular hypertension. The lack of hypertensive retinopathy and left ventricular hypertrophy on physical examination further support a recent onset of her BP elevation.
+
+\lbl{4. Systolic murmur}
+The possibility of important valvular heart disease is raised by the murmur, specifically, aortic stenosis. The murmur radiates to the neck as an aortic valvular murmur often does, but a normal carotid upstroke may mean this murmur is not significant.
+
+\textbf{5. Epigastric discomfort, NSAID use with a history of peptic ulcer disease.}\\
+\textbf{6. Lumbo-sacral back pain}\\
+\textbf{7. Fibrocystic breast disease}\\
+\textbf{8. Penicillin allergy}
+
+% ------------------------------------------------------------
+\section*{Plan}
+
+\begin{enumerate}[leftmargin=2em,label=\arabic*.,itemsep=0.4em,topsep=0pt,parsep=0pt]
+  \item Carefully monitor the patient for any increased chest pain that might be indicative of impending myocardial infarction by admitting the patient to the telemetry floor.
+  \item Start platelet inhibitors, such as aspirin to decrease the risk of myocardial infarction; start nitrates to decrease the risk of occlusion and to treat her symptoms of pain. For prolonged pain unresponsive to nitrates, she may need an analgesic such as morphine. The nitrates will also help to lower her BP.
+  \item Patient should have her cholesterol monitored and when discharged she should be started on an appropriate exercise and weight loss program, including a low-fat diet. If her cholesterol is elevated, she may need cholesterol-lowering medication such as HMG Co-reductases.
+  \item Schedule a cardiac catheterization since non-invasive tests have a high pretest probability for being positive and regardless of the result, negative or positive, she will need a cath
+  \item Begin diuretics for her dyspnea which is most likely secondary to volume overload -- this will treat her high BP as well. She should have a ventriculogram with the cath that will assess cardiac size and presence of wall motion abnormalities.
+  \item Appropriate lab work would include BUN/Creatinine to assess kidney function, electrolytes and baseline EKG.
+\end{enumerate}
+\cm{You should develop a diagnostic and therapeutic plan for the patient. Your plan should incorporate acute and long-term care of the patient's most likely problem. You should consider pharmacologic and non-pharmacologic measures and be cognizant of the fact that you need to treat the symptoms (i.e.\ make the patient comfortable) as much as treating the disease when possible. You are expected to know the usual classes of medications used to treat these illnesses.}
 
 \end{document}
