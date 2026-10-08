@@ -16,7 +16,7 @@ Open `http://localhost:3000`. The first PaddleOCR run downloads its English mode
 
 ### Local report summaries
 
-MedLingua creates a source-grounded extractive summary locally with Python NLP: it removes OCR tutorial comments, scores sentences by term importance, and groups selected original sentences into paragraphs. It does not use a cloud API or download model weights. This approach is deliberately extractive so it does not invent clinical details; check the selected sentences against the original extracted text. Summary quality depends on OCR quality and report structure. Existing documents created before the summary migration have no summary.
+MedLingua creates source-grounded, extractive summaries locally with Python NLP. It recognizes common sections in clinical notes, radiology, pathology, laboratory, operative, and discharge reports; prioritizes symptoms and timeline, history, findings/results, assessment, and plan; and explains a limited set of common abbreviations and terms. It does not use a cloud API or download model weights. Summaries reuse selected source sentences rather than generating new clinical claims, but coverage and plain-language explanations are not comprehensive or validated for every specialty or report format. Check summaries against the original extracted text, especially when OCR is unclear. Existing documents created before the summary migration have no summary.
 
 On Windows CMD, paste only the commands inside a code block; do not paste the Markdown fence characters (the lines containing three backticks).
 

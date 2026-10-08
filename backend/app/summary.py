@@ -21,11 +21,41 @@ _ABBREVIATIONS = (
     "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", "St.", "vs.", "etc.", "e.g.", "i.e."
 )
 _CLINICAL_TERMS = (
-    "chest pain", "shortness of breath", "dyspnea", "blood pressure", "murmur",
-    "crackles", "bruit", "angina", "hypertension", "diagnosis", "assessment",
-    "medication", "allergy", "heart attack", "myocardial infarction",
+    "symptom", "diagnosis", "assessment", "impression", "finding", "abnormal",
+    "elevated", "low", "positive", "negative", "medication", "treatment",
+    "procedure", "test", "scan", "biopsy", "follow-up", "allergy",
+    "pain", "fever", "infection", "mass", "lesion", "fracture", "swelling",
+    "bleeding", "cough", "weakness", "culture", "radiology", "pathology",
+    "hemoglobin", "oxygen", "blood pressure", "shortness of breath",
+)
+_SALIENT_FINDINGS = re.compile(
+    r"\b(?:abnormal|elevated|low|high|positive|negative|mass|lesion|fracture|"
+    r"infection|edema|swelling|tenderness|bleeding|rash|weakness|wheez(?:e|ing)|"
+    r"crackles|murmur|bruit|ulcer|opacity|nodule|effusion|hemorrhage|"
+    r"enlarged|restricted|stenosis|anemia)\b",
+    re.I,
 )
 _PLAIN_LANGUAGE = (
+    (re.compile(r"\bSOB\b", re.I), "shortness of breath (SOB)"),
+    (re.compile(r"\bNPO\b", re.I), "nothing by mouth (NPO)"),
+    (re.compile(r"\bPRN\b", re.I), "as needed (PRN)"),
+    (re.compile(r"\bPO\b"), "by mouth (PO)"),
+    (re.compile(r"\bIV\b"), "into a vein (IV)"),
+    (re.compile(r"\bCBC\b", re.I), "complete blood count (CBC)"),
+    (re.compile(r"\bMRI\b", re.I), "MRI scan (magnetic resonance imaging)"),
+    (re.compile(r"\bCT scan\b", re.I), "CT scan (detailed X-ray imaging)"),
+    (re.compile(r"\bBP\b"), "blood pressure (BP)"),
+    (re.compile(r"\bbilateral\b", re.I), "bilateral (on both sides)"),
+    (re.compile(r"\bunilateral\b", re.I), "unilateral (on one side)"),
+    (re.compile(r"\bedema\b", re.I), "edema (swelling from fluid buildup)"),
+    (re.compile(r"\blesion\b", re.I), "lesion (an area of abnormal tissue)"),
+    (re.compile(r"\bbenign\b", re.I), "benign (not cancerous)"),
+    (re.compile(r"\bmalignant\b", re.I), "malignant (cancerous)"),
+    (re.compile(r"\bbiopsy\b", re.I), "biopsy (a tissue sample examined for disease)"),
+    (re.compile(r"\bmetastasis\b", re.I), "metastasis (spread of cancer)"),
+    (re.compile(r"\bmetastatic\b", re.I), "metastatic (having spread from its original site)"),
+    (re.compile(r"\bfracture\b", re.I), "fracture (a break in a bone)"),
+    (re.compile(r"\bunremarkable\b", re.I), "unremarkable (no unusual finding noted)"),
     (
         re.compile(r"\bparoxysmal nocturnal dyspnea\b", re.I),
         "sudden nighttime shortness of breath",
@@ -80,7 +110,6 @@ _LABEL_ONLY_HEADINGS = {
     "general", "skin", "heent", "cadiovascular", "cardiovascular",
     "gastrointestinal", "genitourinary", "musculoskeletal", "neurological",
     "neck", "chest", "abdomen", "extremities", "nodes", "genital/rectal",
-    "surgical", "vital signs",
 }
 _COMMENT_CONTINUATIONS = (
     r"^patient['’]s complaint\b",
@@ -105,6 +134,17 @@ _COMMENT_CONTINUATIONS = (
     r"^develop a diagnostic and therapeutic plan\b",
     r"^your plan should\b",
 )
+_TUTORIAL_COMMENT = re.compile(
+    r"(?i)^(?:define\b|convey\b|describe\b|change\b|new duration\b|"
+    r"reason she\b|what has\b|onset\b|circumstances\b|associated symptoms\b|"
+    r"duration\b|"
+    r"relevant\b|review of systems\b|this highly relevant\b|always\b|"
+    r"quantity\b|include\b|separate\b|ok to refer\b|list\b|comment\b|"
+    r"check\b|description may\b|this patient needs\b|more precise\b|"
+    r"although you can omit\b|this list\b|in the assessment\b|"
+    r"as in the previous\b|you should\b|your plan\b|follow this pattern\b|"
+    r"develop\b)"
+)
 
 
 def _clean_lines(text: str) -> list[str]:
@@ -116,14 +156,18 @@ def _clean_lines(text: str) -> list[str]:
         if not stripped or re.fullmatch(r"\d+", stripped):
             continue
         if re.match(r"(?i)^comment\s*:", stripped):
-            skipping_comment = True
-            continue
+            comment = re.sub(r"(?i)^comment\s*:\s*", "", stripped)
+            if _TUTORIAL_COMMENT.match(comment):
+                skipping_comment = True
+                continue
+            stripped = comment
         normalized = stripped.casefold().rstrip(":")
         if normalized in _SECTION_HEADINGS or normalized in _LABEL_ONLY_HEADINGS:
             continue
         if re.match(r"(?i)^(?:patient name|date|referral source|data source)\s*:", stripped):
             continue
         stripped = re.sub(r"(?i)^chief complaint\s*&\s*id\s*:\s*", "", stripped)
+        stripped = re.sub(r"(?i)^see HPI\s*", "", stripped)
         stripped = re.sub(
             r"(?i)^(?:allergy|medications|alcohol use|tobacco use)\s*:\s*",
             "",
@@ -206,7 +250,17 @@ def _sentence_score(
     clinical_bonus = 2 * sum(
         term in sentence.casefold() for term in _CLINICAL_TERMS
     )
-    return weighted / math.sqrt(len(words)) + clinical_bonus
+    finding_bonus = 6 * len(set(_SALIENT_FINDINGS.findall(sentence)))
+    measurement_bonus = (
+        1.5
+        if re.search(
+            r"\b\d+(?:\.\d+)?\s*(?:%|mg|g|mm|cm|mmol|g/dl)\b",
+            sentence,
+            re.I,
+        )
+        else 0
+    )
+    return weighted / math.sqrt(len(words)) + clinical_bonus + finding_bonus + measurement_bonus
 
 
 def _select_section(
@@ -269,44 +323,105 @@ def _explain_terms(text: str) -> str:
 def summarize_text(text: str) -> str:
     """Build a source-grounded, multi-paragraph extractive report summary."""
     lines = _clean_lines(text)
-    headings = {
+    heading_sections = {
+        "chief complaint": "hpi",
         "chief complaint & id": "hpi",
         "history of present illness": "hpi",
+        "present illness": "hpi",
+        "indication": "hpi",
+        "reason for visit": "hpi",
+        "reason for admission": "hpi",
+        "clinical indication": "hpi",
+        "subjective": "hpi",
+        "clinical history": "history",
+        "clinical information": "history",
+        "patient history": "history",
         "past medical history": "history",
         "medical history": "history",
         "family history": "history",
         "social history": "history",
+        "medications": "history",
+        "allergies": "history",
         "review of systems": "history",
-        "physical examination": "exam",
-        "vital signs": "exam",
+        "surgical history": "history",
+        "surgical": "history",
+        "physical examination": "findings",
+        "exam": "findings",
+        "vital signs": "findings",
+        "objective": "findings",
+        "findings": "findings",
+        "results": "findings",
+        "test results": "findings",
+        "laboratory results": "findings",
+        "lab results": "findings",
+        "laboratory data": "findings",
+        "specimen": "findings",
+        "imaging": "findings",
+        "imaging findings": "findings",
+        "radiology findings": "findings",
+        "pathology findings": "findings",
+        "laboratory": "findings",
+        "objective findings": "findings",
+        "microscopic description": "findings",
+        "gross description": "findings",
+        "operative findings": "findings",
+        "procedure": "findings",
+        "hospital course": "findings",
         "initial problem list": "assessment",
         "revised problem list": "assessment",
+        "assessment": "assessment",
         "assessment and differential diagnosis": "assessment",
+        "assessment / plan": "assessment",
+        "diagnosis": "assessment",
+        "diagnoses": "assessment",
+        "impression": "assessment",
+        "final impression": "assessment",
+        "conclusion": "assessment",
+        "interpretation": "assessment",
+        "final diagnosis": "assessment",
+        "discharge diagnosis": "assessment",
+        "preoperative diagnosis": "assessment",
+        "postoperative diagnosis": "assessment",
         "plan": "plan",
-        "surgical": "history",
-        "surgical �": "history",
-        "surgical -": "history",
-        "surgical –": "history",
-        "surgical —": "history",
-        "medical history �": "history",
-        "medical history -": "history",
-        "medical history –": "history",
-        "medical history —": "history",
+        "treatment": "plan",
+        "recommendations": "plan",
+        "recommendation": "plan",
+        "follow-up": "plan",
+        "follow up": "plan",
+        "disposition": "plan",
+        "discharge plan": "plan",
+        "discharge instructions": "plan",
+        "medications on discharge": "plan",
     }
+    heading_names = sorted(heading_sections, key=len, reverse=True)
+    embedded_heading = re.compile(
+        rf"(?i)(?<!\w)({'|'.join(re.escape(name) for name in heading_names)})"
+        r"\s*[:'’\-–—]"
+    )
     section_lines: dict[str, list[str]] = {
         "hpi": [],
         "history": [],
-        "exam": [],
+        "findings": [],
         "assessment": [],
         "plan": [],
     }
     current_section = "hpi"
     for line in lines:
-        heading = line.casefold().strip().rstrip(":")
-        if heading in headings:
-            current_section = headings[heading]
-            continue
-        section_lines[current_section].append(line)
+        parts: list[str] = []
+        start = 0
+        for match in embedded_heading.finditer(line):
+            parts.extend((line[start:match.start()], match.group(1)))
+            start = match.end()
+        parts.append(line[start:])
+        for part in parts:
+            part = part.strip()
+            heading = re.sub(r"\s+", " ", part.casefold().strip(" :'’–—-"))
+            heading = re.sub(r"^[\d.)\s-]+", "", heading)
+            if heading in heading_sections:
+                current_section = heading_sections[heading]
+                continue
+            if part:
+                section_lines[current_section].append(part)
 
     section_sentences = {
         name: _sentences(" ".join(section))
@@ -314,20 +429,22 @@ def summarize_text(text: str) -> str:
     }
     has_structured_sections = sum(
         bool(section_sentences[name])
-        for name in ("hpi", "history", "exam", "assessment", "plan")
-    ) >= 3
+        for name in ("hpi", "history", "findings", "assessment", "plan")
+    ) >= 2
     if has_structured_sections:
         paragraph_sources = [
             section_sentences["hpi"],
             section_sentences["history"],
-            section_sentences["exam"],
+            section_sentences["findings"],
             section_sentences["assessment"] + section_sentences["plan"],
         ]
     else:
         all_sentences = _sentences(
             " ".join(
                 line for line in lines
-                if line.casefold().strip().rstrip(":") not in headings
+                if re.sub(r"^[\d.)\s-]+", "", re.sub(
+                    r"\s+", " ", line.casefold().strip().rstrip(":")
+                )) not in heading_sections
             )
         )
         paragraph_count = min(4, len(all_sentences))
@@ -349,34 +466,34 @@ def summarize_text(text: str) -> str:
 
     priorities = {
         0: (
-            r"chest pain",
-            r"(?:week|day|hour|minute|month|year|ago|duration|lasting)",
-            r"(?:sleep|rest|awaken|awoke|emergency department|prompted|worsen|additional episode)",
-            r"(?:shortness of breath|dyspnea|radiat|nausea|sweating|vomit)",
-            r"(?:additional episodes|three days ago|walking her dog)",
-            r"(?:exertion|walking|activity|garden)",
+            r"(?:chief complaint|presenting|reason for (?:visit|admission)|presents with)",
+            r"(?:began|started|onset|since|for the past|duration|lasted|ago|history of)",
+            r"(?:worsen|progress|increase|decrease|recur|new|sudden|persistent)",
+            r"(?:symptom|pain|fever|weakness|bleeding|rash|cough|breath|nausea|vomit)",
+            r"(?:associated with|accompanied by|denies|without|no history of)",
         ),
         1: (
-            r"(?:hypertension|high blood pressure)",
-            r"(?:father|mother).*(?:heart attack|deceased)|(?:heart attack).*(?:father|mother)",
-            r"(?:family history|FH).*(?:premature|early).*(?:CAD|ASCVD|coronary)|(?:premature|early).*(?:CAD|ASCVD|coronary)",
-            r"(?:no history of heart disease|no previous heart disease|never been told.*heart)",
-            r"(?:not smoke|does not smoke|never smoke|tobacco)",
-            r"(?:diabetes|blood sugar)",
-            r"(?:peptic ulcer|cancer|lung disease|surgical menopause|oophorectomy)",
-            r"(?:medication|ibuprofen|aspirin|allergy)",
+            r"(?:medical|past|chronic|relevant) history|history of",
+            r"(?:medication|medicine|drug|dose|prescription|treatment)",
+            r"(?:allerg(?:y|ies)|adverse reaction)",
+            r"(?:family history|social history|smok(?:e|ing)|alcohol|tobacco)",
+            r"(?:father|mother|parent|sibling|brother|sister|family member)",
+            r"(?:surgery|surgical|procedure|hospitali[sz]ed)",
+            r"(?:diabetes|hypertension|high blood pressure|cancer|asthma|kidney|stroke)",
+            r"(?:denies|no history of|negative for|without)",
         ),
         2: (
-            r"(?:blood pressure|pulse|temperature|respirations)",
-            r"(?:murmur|heart sound|PMI|cardiac)",
-            r"(?:bruit|abdominal bruit)",
-            r"(?:crackles|lungs|edema)",
+            r"(?:abnormal|elevated|increased|decreased|low|high|positive|negative|present|absent)",
+            r"(?:result|show(?:s|ed)?|demonstrat(?:e|es|ed)|reveal(?:s|ed)?|consistent with|suggestive of)",
+            r"(?:CT|MRI|ultrasound|X-ray|radiograph|scan|biopsy|laboratory|lab|culture)",
+            r"(?:blood pressure|pulse|temperature|oxygen|glucose|hemoglobin|mass|lesion|fracture|infection|murmur|crackles|bruit|edema|swelling|tenderness|bleeding|rash|weakness)",
+            r"(?:finding|examination|test|imaging|pathology|specimen)",
         ),
         3: (
-            r"(?:assessment|angina|ischemic|diagnosis|most likely)",
-            r"(?:risk factor|family history|hypertension|surgical menopause|ASCVD)",
-            r"(?:differential|less likely|reflux|pulmonary|alternative)",
-            r"(?:plan|monitor|admi|catheter|nitrate|aspirin|treatment|schedule|begin|start)",
+            r"(?:assessment|diagnos(?:is|ed)|impression|conclusion|consistent with|most likely)",
+            r"(?:differential|possible|likely|unlikely|cannot exclude|ruled out)",
+            r"(?:treat|start|stop|continue|prescri|medication|procedure|surgery|therapy)",
+            r"(?:plan|recommend|follow.?up|monitor|discharge|return|repeat|schedule|refer)",
         ),
     }
     paragraphs: list[str] = []
@@ -409,9 +526,8 @@ def summarize_text(text: str) -> str:
                 document_frequency,
                 len(sentences),
                 priorities[paragraph_index],
-                (7, 8, 4, 5)[paragraph_index],
-                (140, 190, 105, 155)[paragraph_index],
-                fill_remaining=paragraph_index not in (1, 2),
+                (7, 8, 7, 5)[paragraph_index],
+                (140, 190, 190, 155)[paragraph_index],
             )
         else:
             selected = _select_section(

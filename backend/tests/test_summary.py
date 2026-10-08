@@ -101,6 +101,7 @@ The documented plan includes monitoring and cardiac evaluation.
     assert "chest pain" in paragraphs[0]
     assert "hypertension" in paragraphs[1]
     assert "murmur" in paragraphs[2]
+    assert "crackles" in paragraphs[2].casefold()
     assert "angina" in paragraphs[3]
     assert "monitoring and cardiac evaluation" in paragraphs[3]
 
@@ -161,3 +162,116 @@ def test_sentence_segmentation_keeps_common_name_abbreviations() -> None:
 
     assert len(sentences) == 2
     assert sentences[0].startswith("Ms. Rogers")
+
+
+def test_radiology_report_keeps_indication_findings_impression_and_recommendation() -> None:
+    source = """\
+Clinical Indication
+The patient has had a worsening cough and fever for five days.
+Imaging Findings
+CT scan shows bilateral patchy opacities in the lower lungs.
+Impression
+The findings are consistent with pneumonia.
+Recommendations
+Repeat chest imaging in six weeks to confirm the opacities have resolved.
+"""
+
+    summary = summarize_text(source).casefold()
+
+    assert "worsening cough and fever for five days" in summary
+    assert "bilateral (on both sides) patchy opacities" in summary
+    assert "consistent with pneumonia" in summary
+    assert "repeat chest imaging in six weeks" in summary
+    assert "cardiac" not in summary
+
+
+def test_pathology_and_laboratory_reports_include_results_and_interpretation() -> None:
+    pathology = """\
+Clinical History
+The patient has a skin lesion that has increased in size over three months.
+Specimen
+A biopsy was taken from the left forearm.
+Microscopic Description
+The specimen contains atypical cells in the sampled tissue.
+Final Diagnosis
+The findings are consistent with a malignant melanoma.
+"""
+    laboratory = """\
+Clinical Information
+The patient reports fatigue and dizziness.
+Laboratory Results
+Hemoglobin is low at 8.2 g/dL and the complete blood count shows anemia.
+Interpretation
+The results indicate anemia.
+Plan
+Repeat laboratory testing in two weeks.
+"""
+
+    pathology_summary = summarize_text(pathology).casefold()
+    laboratory_summary = summarize_text(laboratory).casefold()
+
+    assert "skin lesion" in pathology_summary
+    assert "biopsy" in pathology_summary
+    assert "malignant (cancerous) melanoma" in pathology_summary
+    assert "fatigue and dizziness" in laboratory_summary
+    assert "hemoglobin is low at 8.2 g/dl" in laboratory_summary
+    assert "anemia" in laboratory_summary
+    assert "repeat laboratory testing in two weeks" in laboratory_summary
+
+
+def test_discharge_summary_preserves_course_diagnosis_and_follow_up() -> None:
+    source = """\
+Reason for Admission
+The patient was admitted with dehydration after three days of vomiting.
+Hospital Course
+Symptoms improved after intravenous fluids, and the patient is tolerating oral fluids.
+Discharge Diagnosis
+The final diagnosis is acute gastroenteritis with dehydration.
+Discharge Instructions
+Continue oral fluids and return for worsening symptoms or reduced urination.
+Follow-up
+See the primary care clinician in one week.
+"""
+
+    summary = summarize_text(source).casefold()
+
+    assert "three days of vomiting" in summary
+    assert "symptoms improved" in summary
+    assert "dehydration" in summary
+    assert "return for worsening symptoms" in summary
+    assert "primary care clinician in one week" in summary
+
+
+def test_ocr_inline_section_headings_are_recognized() -> None:
+    source = """\
+History of Present Illness
+The patient reports a persistent cough.
+Surgical � 2020: Appendectomy Medical History � Diagnosed with asthma in childhood.
+Physical Examination
+Wheezing is heard in both lungs.
+Impression
+The findings are consistent with an asthma exacerbation.
+Plan
+Continue the prescribed inhaler and return if breathing worsens.
+"""
+
+    summary = summarize_text(source).casefold()
+
+    assert "appendectomy" in summary
+    assert "asthma in childhood" in summary
+    assert "wheezing is heard" in summary
+    assert "asthma exacerbation" in summary
+
+
+def test_clinical_comment_is_kept_but_tutorial_comment_is_removed() -> None:
+    result = summarize_text("""\
+Comment: Define the reason for the patient's visit as specifically as possible.
+The patient presented to the emergency department with abdominal pain.
+Comment: No acute fracture is identified on the X-ray.
+The patient may return to normal activity as tolerated.
+""")
+
+    assert "define the reason" not in result.casefold()
+    assert "abdominal pain" in result.casefold()
+    assert "no acute fracture" in result.casefold()
+    assert "return to normal activity" in result.casefold()
