@@ -1,5 +1,6 @@
 from datetime import datetime
 from uuid import UUID
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -33,4 +34,21 @@ class DocumentRead(BaseModel):
     media_type: str
     extracted_text: str
     summary: str | None
+    translations: dict[str, "DocumentTranslationCache"]
     created_at: datetime
+
+
+class DocumentTranslationCache(BaseModel):
+    summary: str | None = None
+    extracted_text: str | None = None
+    extracted_chunks: list[str] = Field(default_factory=list)
+
+
+class DocumentTranslationRequest(BaseModel):
+    language: Literal["hi", "mr", "ta"]
+
+
+class DocumentTranslationRead(BaseModel):
+    language: Literal["hi", "mr", "ta"]
+    summary: str | None
+    extracted_text: str
