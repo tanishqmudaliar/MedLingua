@@ -71,7 +71,7 @@ The project is intended to make reports easier to read, not to interpret them in
 | Persistence | PostgreSQL 16, SQLAlchemy 2, asyncpg, Alembic |
 | PDF and image processing | PyMuPDF, OpenCV, PaddleOCR |
 | Summarization | Local Python NLP and extractive sentence selection |
-| Translation | Hugging Face Transformers, M2M100, PyTorch 2.6 CUDA 12.4 build, SentencePiece |
+| Translation | Hugging Face Transformers, M2M100, PyTorch 2.13 CUDA 13.0 build, SentencePiece |
 | Tests | pytest, TypeScript compiler |
 
 ## Getting Started
@@ -83,7 +83,7 @@ The project is intended to make reports easier to read, not to interpret them in
 - Node.js and npm.
 - Docker Desktop with Docker Compose, or a separately installed PostgreSQL 16 server.
 - Git.
-- For GPU translation: an NVIDIA GPU, a compatible NVIDIA driver, and a CUDA-enabled PyTorch installation. This repository pins the CUDA 12.4 PyTorch wheel. The GTX 1650 has 4 GB of VRAM, which can limit the size of inputs that fit on the GPU.
+- For GPU translation: an NVIDIA GPU, a compatible NVIDIA driver, and a CUDA-enabled PyTorch installation. This repository pins the CUDA 13.0 PyTorch wheel. The GTX 1650 has 4 GB of VRAM, which can limit the size of inputs that fit on the GPU.
 - A TeX distribution such as MiKTeX or TeX Live only if you want to compile the included `demo/demo.tex`.
 
 ### Installation
