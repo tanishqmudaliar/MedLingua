@@ -14,6 +14,10 @@ MedLingua extracts English text from uploaded PDFs and images and stores each re
 
 Open `http://localhost:3000`. The first PaddleOCR run downloads its English model files. If Windows blocks PaddleOCR's native dependency, the backend automatically falls back to Tesseract OCR. Install it from CMD with `winget install --id UB-Mannheim.TesseractOCR -e`, then restart the backend. If it is installed outside PATH, set `TESSERACT_CMD` in `backend/.env`, for example `TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe`.
 
+### Local report summaries
+
+MedLingua creates a source-grounded extractive summary locally with Python NLP: it removes OCR tutorial comments, scores sentences by term importance, and groups selected original sentences into paragraphs. It does not use a cloud API or download model weights. This approach is deliberately extractive so it does not invent clinical details; check the selected sentences against the original extracted text. Summary quality depends on OCR quality and report structure. Existing documents created before the summary migration have no summary.
+
 On Windows CMD, paste only the commands inside a code block; do not paste the Markdown fence characters (the lines containing three backticks).
 
 Uploads are stored in `backend/uploads` by default. Configure limits and paths through `backend/.env`.

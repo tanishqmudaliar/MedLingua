@@ -1,7 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export type User = { id: string; username: string; name: string; email: string };
-export type Document = { id: string; original_filename: string; media_type: string; extracted_text: string; created_at: string };
+export type Document = { id: string; original_filename: string; media_type: string; extracted_text: string; summary: string | null; created_at: string };
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {

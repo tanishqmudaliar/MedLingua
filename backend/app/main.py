@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, File, HTTPException, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import delete, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,7 @@ from .models import Document, User
 from .ocr import extract_image_text, extract_pdf_text
 from .schemas import DocumentRead, UserCreate, UserLogin, UserRead
 from .security import create_access_token, hash_password, verify_password
+from .summary import summarize_text
 
 settings = get_settings()
 app = FastAPI(title="MedLingua API", version="1.0.0")
@@ -94,12 +96,14 @@ async def upload_document(
             detail = "PaddleOCR could not load. Check the pinned PaddleOCR/PaddlePaddle dependencies and the Python environment."
             raise HTTPException(status_code=503, detail=detail) from exc
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    summary = await run_in_threadpool(summarize_text, text)
     document = Document(
         owner_id=user.id,
         original_filename=file.filename or "upload",
         media_type=file.content_type,
         storage_path=str(stored_path),
         extracted_text=text,
+        summary=summary or None,
     )
     db.add(document)
     await db.commit()

@@ -32,5 +32,5 @@ class DocumentRead(BaseModel):
     original_filename: str
     media_type: str
     extracted_text: str
+    summary: str | None
     created_at: datetime
-

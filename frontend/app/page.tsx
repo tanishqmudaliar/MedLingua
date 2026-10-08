@@ -85,7 +85,10 @@ export default function Home() {
       <section className="content-panel">
         <section className="card"><h2>Extract text</h2><form ref={uploadFormRef} onSubmit={upload}><input name="file" type="file" accept=".pdf,image/png,image/jpeg,image/webp,image/bmp,image/tiff" required /><button disabled={busy}>{busy ? "Working..." : "Upload and extract"}</button></form></section>
         {error && <p className="error">{error}</p>}
-        {selectedDocument ? <article className="card"><div className="row"><div><h2>{selectedDocument.original_filename}</h2><small>{new Date(selectedDocument.created_at).toLocaleString()}</small></div><button className="danger" disabled={busy} onClick={() => removeDocument(selectedDocument)}>Delete record</button></div><pre>{selectedDocument.extracted_text || "No text was detected."}</pre></article> : <section className="card"><p>Upload a PDF or image to view its extracted text here.</p></section>}
+        {selectedDocument ? <article className="card"><div className="row"><div><h2>{selectedDocument.original_filename}</h2><small>{new Date(selectedDocument.created_at).toLocaleString()}</small></div><button className="danger" disabled={busy} onClick={() => removeDocument(selectedDocument)}>Delete record</button></div>
+          <section aria-labelledby="summary-heading"><h3 id="summary-heading">Source-grounded report summary</h3>{selectedDocument.summary ? selectedDocument.summary.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => <p key={index}>{paragraph}</p>) : <p>{selectedDocument.extracted_text ? "Summary unavailable for this existing report." : "No text was detected, so a summary could not be generated."}</p>}<small>Extracted from source sentences; informational only, not medical advice. Verify details against the full OCR text.</small></section>
+          <section aria-labelledby="extracted-text-heading"><h3 id="extracted-text-heading">Extracted text</h3><pre>{selectedDocument.extracted_text || "No text was detected."}</pre></section>
+        </article> : <section className="card"><p>Upload a PDF or image to view its extracted text here.</p></section>}
       </section>
     </div>
   </main>;
