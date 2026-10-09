@@ -76,6 +76,12 @@ The project is intended to make reports easier to read, not to interpret them in
 
 ## Getting Started
 
+### One-command startup on Windows
+
+From the repository root, double-click `run_medlingua.bat` or run it from Command Prompt. It creates missing local environment files and the backend virtual environment, installs backend and frontend dependencies, starts PostgreSQL with Docker Compose, applies Alembic migrations, checks/downloads the local translation model, and opens the backend and frontend development servers in separate windows.
+
+Install and start Docker Desktop, and install Python 3.11, Node.js, and npm before running the script. The first run can take a while: it downloads the CUDA-enabled PyTorch wheel and the translation model. Keep the two server windows open while using the app. The script does not overwrite existing `.env` or `.env.local` files.
+
 ### Prerequisites
 
 - Windows 10/11 or another supported Python and Node.js environment.
