@@ -1871,3 +1871,370 @@ button:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* --- MedLingua Chatbot & Retranslation Extensions --- */
+.summary-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.summary-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.summary-badge-llm {
+  background: var(--accent-wash);
+  color: var(--accent-strong);
+  border: 1px solid rgba(57, 119, 100, 0.25);
+}
+
+.summary-badge-fallback {
+  background: #fbf5e6;
+  color: #8c6318;
+  border: 1px solid rgba(145, 107, 48, 0.25);
+}
+
+.retranslate-panel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface-soft);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.retranslate-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+.button-retranslate {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.button-retranslate:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.button-retranslate:disabled {
+  opacity: 0.55;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-pending { background: #f0f0ed; color: #737370; }
+.status-translating { background: var(--accent-wash); color: var(--accent-strong); animation: pulse 1.8s infinite; }
+.status-completed { background: #eaf6ec; color: #2e6930; }
+.status-failed { background: var(--danger-wash); color: var(--danger); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Chatbot Section */
+.chatbot-card {
+  margin-top: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.chatbot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--line);
+}
+
+.chatbot-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.chatbot-pill {
+  font-size: 10px;
+  color: var(--accent-strong);
+  background: var(--accent-wash);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.chat-history {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  max-height: 380px;
+  overflow-y: auto;
+  background: #fafbf9;
+}
+
+.chat-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 30px 10px;
+}
+
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  max-width: 82%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  word-wrap: break-word;
+}
+
+.chat-message-user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #ffffff;
+  border-bottom-right-radius: 2px;
+}
+
+.chat-message-assistant {
+  align-self: flex-start;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 2px;
+}
+
+.chat-form {
+  display: flex;
+  gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.chat-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.chat-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.chat-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.chat-submit:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.chat-disclaimer {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 8px 14px;
+  background: var(--surface-soft);
+  border-top: 1px solid var(--line);
+}
+
+/* --- Real-Time Upload & Summarization Progress Feed --- */
+.upload-progress-feed {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: #f7faf8;
+  border: 1px solid #d5e5db;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  animation: fadeInProgress 0.25s ease-out;
+}
+
+@keyframes fadeInProgress {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.upload-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.upload-progress-header .hw-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: #eaf3ed;
+  color: #2c6552;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+}
+
+.upload-progress-header .timer {
+  color: #73857a;
+  font-variant-numeric: tabular-nums;
+  font-weight: 550;
+  font-size: 11px;
+}
+
+.upload-progress-bar-track {
+  width: 100%;
+  height: 6px;
+  background: #e3ede6;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.upload-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #397764, #52a38b);
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.upload-stages-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+@media (max-width: 768px) {
+  .upload-stages-stepper {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.upload-stage-step {
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: #ffffff;
+  border: 1px solid #e5ebe7;
+  font-size: 10.5px;
+  color: #7a8880;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.upload-stage-step.active {
+  background: #eaf3ed;
+  border-color: #397764;
+  color: #172720;
+  font-weight: 650;
+  box-shadow: 0 1px 3px rgba(57, 119, 100, 0.12);
+}
+
+.upload-stage-step.completed {
+  background: #f1f8f3;
+  border-color: #a3c9b3;
+  color: #2c6552;
+}
+
+.upload-current-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #2c6552;
+  font-weight: 500;
+}
+
+.upload-current-status .spinner {
+  width: 13px;
+  height: 13px;
+  border-width: 1.6px;
+}
+
+/* --- Real-Time Translation Progress Bar --- */
+.translation-progress-bar {
+  flex: 1;
+  max-width: 160px;
+  height: 6px;
+  background: rgba(57, 119, 100, 0.16);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0 8px;
+}
+
+.translation-progress-fill {
+  height: 100%;
+  background: var(--accent, #397764);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}

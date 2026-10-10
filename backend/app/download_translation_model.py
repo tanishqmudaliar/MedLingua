@@ -1,13 +1,21 @@
-from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
+import logging
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from .config import get_settings
 
-from .translation import MODEL_NAME
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
-    print(f"Downloading {MODEL_NAME} for local Hindi, Marathi, and Tamil translation...")
-    M2M100Tokenizer.from_pretrained(MODEL_NAME)
-    M2M100ForConditionalGeneration.from_pretrained(MODEL_NAME)
-    print("Translation model is ready. Translations run locally at runtime.")
+    settings = get_settings()
+    model_name = settings.indictrans_model_name
+    print(f"Checking/downloading {model_name} for local Indic translation...")
+    try:
+        AutoTokenizer.from_pretrained(model_name, trust_remote_code=True, token=settings.hf_token)
+        AutoModelForSeq2SeqLM.from_pretrained(model_name, trust_remote_code=True, token=settings.hf_token)
+        print("IndicTrans2 translation model weights cached locally.")
+    except Exception as exc:
+        print(f"Notice: Translation model download skipped or deferred ({exc}).")
+        print("Model will load on-demand when translation jobs execute.")
 
 
 if __name__ == "__main__":
