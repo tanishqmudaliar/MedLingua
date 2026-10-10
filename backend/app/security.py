@@ -1,21 +1,31 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+import bcrypt
 import jwt
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 
 from .config import get_settings
 
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+_legacy_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    """Hashes password using native bcrypt."""
+    pw_bytes = password.encode("utf-8")[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pw_bytes, salt).decode("utf-8")
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return pwd_context.verify(password, password_hash)
+    """Verifies password using bcrypt for modern hashes and pbkdf2 for legacy hashes."""
+    if password_hash.startswith(("$2a$", "$2b$", "$2y$")):
+        try:
+            return bcrypt.checkpw(password.encode("utf-8")[:72], password_hash.encode("utf-8"))
+        except Exception:
+            return False
+    return _legacy_context.verify(password, password_hash)
 
 
 def create_access_token(user_id: UUID) -> str:

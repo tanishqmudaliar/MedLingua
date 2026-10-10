@@ -1,98 +1,85 @@
-import torch
+import pytest
 
 from app import translation
-from app.translation import LANGUAGES, _split_into_chunks
-
-
-class FakeTokenizer:
-    src_lang = ""
-
-    def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
-        return list(range(len(text.split())))
-
-    def decode(self, token_ids: list[int], skip_special_tokens: bool = True) -> str:
-        return " ".join(f"token{token_id}" for token_id in token_ids)
-
-    def __call__(self, text: str, **kwargs):
-        return {
-            "input_ids": torch.tensor([[1]]),
-            "attention_mask": torch.tensor([[1]]),
-        }
-
-    def get_lang_id(self, language: str) -> int:
-        return {"hi": 1, "mr": 2, "ta": 3}[language]
-
-    def batch_decode(self, generated, skip_special_tokens: bool = True) -> list[str]:
-        return ["translated report"]
-
-
-class FakeModel:
-    def __init__(self) -> None:
-        self.target_language = None
-        self.generation_options = {}
-
-    def generate(self, **kwargs):
-        self.target_language = kwargs["forced_bos_token_id"]
-        self.generation_options = {
-            "no_repeat_ngram_size": kwargs["no_repeat_ngram_size"],
-            "repetition_penalty": kwargs["repetition_penalty"],
-        }
-        return torch.tensor([[1]])
+from app.translation import (
+    INDICTRANS2_TAGS,
+    LANGUAGES,
+    TranslationModelUnavailable,
+    _select_device,
+    translate_summary,
+    translate_text,
+)
 
 
 def test_translation_languages_cover_requested_targets() -> None:
     assert LANGUAGES == {"hi": "Hindi", "mr": "Marathi", "ta": "Tamil"}
-
-
-def test_translation_chunks_long_text_and_keeps_paragraph_boundaries() -> None:
-    tokenizer = FakeTokenizer()
-    text = " ".join(f"word{i}" for i in range(850)) + "\n\nA second paragraph."
-
-    chunks = _split_into_chunks(text, tokenizer)
-
-    assert len(chunks) == 5
-    assert all(len(tokenizer.encode(chunk)) <= 256 for chunk in chunks)
-    assert chunks[-1].endswith("token2")
-
-
-def test_translation_sets_target_language_and_returns_local_model_output(monkeypatch) -> None:
-    tokenizer = FakeTokenizer()
-    model = FakeModel()
-    progress: list[tuple[int, int, str]] = []
-    monkeypatch.setattr(translation, "_load_model", lambda: (model, tokenizer))
-
-    result = translation.translate_text(
-        "A medical report.", "ta", on_progress=lambda *event: progress.append(event)
-    )
-
-    assert tokenizer.src_lang == "en"
-    assert model.target_language == 3
-    assert model.generation_options == {
-        "no_repeat_ngram_size": 3,
-        "repetition_penalty": 1.1,
+    assert INDICTRANS2_TAGS == {
+        "hi": "hin_Deva",
+        "mr": "mar_Deva",
+        "ta": "tam_Taml",
     }
-    assert result == "translated report"
-    assert progress == [(0, 1, ""), (1, 1, "translated report")]
 
 
-def test_translation_resumes_after_cached_chunks_without_translating_them(monkeypatch) -> None:
-    tokenizer = FakeTokenizer()
-    model = FakeModel()
-    monkeypatch.setattr(translation, "_load_model", lambda: (model, tokenizer))
+def test_translation_device_selection() -> None:
+    assert _select_device(cuda_available=True) == "cuda"
+    assert _select_device(cuda_available=False) == "cpu"
 
-    result = translation.translate_text(
-        "A medical report.",
-        "hi",
-        cached_chunks=["already translated"],
+
+def test_translate_summary_unsupported_language() -> None:
+    with pytest.raises(ValueError, match="Unsupported translation language"):
+        translate_summary("Clinical summary text", "de")  # type: ignore
+
+
+def test_translate_summary_empty_text() -> None:
+    assert translate_summary("", "hi") == ""
+    assert translate_summary("   \n\n  ", "mr") == ""
+
+
+def test_translate_summary_mocked(monkeypatch) -> None:
+    class MockModel:
+        def generate(self, **kwargs):
+            return [[101, 102]]
+
+    class MockTokenizer:
+        def __call__(self, batch, **kwargs):
+            class Inputs(dict):
+                def to(self, device):
+                    return self
+            return Inputs({"input_ids": [101]})
+
+        def batch_decode(self, outputs, skip_special_tokens=True):
+            return ["क्लिनिकल सारांश अनुवाद"]
+
+    class MockProcessor:
+        def preprocess_batch(self, sentences, src_lang, tgt_lang):
+            return [f"processed_{s}" for s in sentences]
+
+        def postprocess_batch(self, decoded, lang):
+            return decoded
+
+    monkeypatch.setattr(
+        translation,
+        "_load_indictrans2",
+        lambda: (MockModel(), MockTokenizer(), MockProcessor()),
     )
 
-    assert result == "already translated"
-    assert model.target_language is None
+    result = translate_summary("Patient has mild fever. Follow up in 3 days.", "hi")
+    assert "क्लिनिकल सारांश अनुवाद" in result
 
 
-def test_translation_uses_cuda_when_available(monkeypatch) -> None:
-    assert translation._select_device(cuda_available=True) == "cuda"
+def test_translate_text_backward_compatibility(monkeypatch) -> None:
+    monkeypatch.setattr(
+        translation,
+        "translate_summary",
+        lambda text, lang: f"Translated ({lang}): {text}",
+    )
+    progress_calls = []
 
+    def on_progress(done, total, text):
+        progress_calls.append((done, total, text))
 
-def test_translation_falls_back_to_cpu_without_cuda(monkeypatch) -> None:
-    assert translation._select_device(cuda_available=False) == "cpu"
+    res = translate_text("Normal chest radiograph.", "mr", on_progress=on_progress)
+    assert res == "Translated (mr): Normal chest radiograph."
+    assert len(progress_calls) == 2
+    assert progress_calls[0] == (0, 1, "")
+    assert progress_calls[1] == (1, 1, "Translated (mr): Normal chest radiograph.")

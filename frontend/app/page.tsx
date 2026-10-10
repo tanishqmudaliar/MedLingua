@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import {
   api,
   ApiError,
+  ChatMessage,
   Document,
   DocumentTranslation,
   TranslationLanguage,
@@ -16,6 +17,107 @@ const LANGUAGES: { code: "en" | TranslationLanguage; label: string }[] = [
   { code: "mr", label: "मराठी" },
   { code: "ta", label: "தமிழ்" },
 ];
+
+function formatInlineText(text: string): ReactNode[] {
+  const tokens: ReactNode[] = [];
+  const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      tokens.push(text.slice(lastIndex, match.index));
+    }
+    const token = match[0];
+    if (token.startsWith("**") && token.endsWith("**")) {
+      tokens.push(
+        <strong key={match.index} style={{ fontWeight: 700, color: "var(--foreground, #0f172a)" }}>
+          {token.slice(2, -2)}
+        </strong>
+      );
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      tokens.push(<em key={match.index}>{token.slice(1, -1)}</em>);
+    } else if (token.startsWith("`") && token.endsWith("`")) {
+      tokens.push(
+        <code
+          key={match.index}
+          style={{
+            background: "rgba(0,0,0,0.06)",
+            padding: "2px 6px",
+            borderRadius: "4px",
+            fontSize: "0.9em",
+            fontFamily: "monospace",
+          }}
+        >
+          {token.slice(1, -1)}
+        </code>
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    tokens.push(text.slice(lastIndex));
+  }
+
+  return tokens;
+}
+
+function FormattedMarkdown({ content }: { content: string }) {
+  // Strip conversational intro if the LLM produced one
+  const cleanContent = content
+    .replace(/^(Here is a [^\n]+[.:]|Certainly[^\n]*[.:]|Sure,[^\n]*[.:])\s*/i, "")
+    .trim();
+
+  const paragraphs = cleanContent.split(/\n\s*\n/).filter(Boolean);
+
+  return (
+    <div className="formatted-markdown">
+      {paragraphs.map((p, pIdx) => {
+        const lines = p.split("\n").map((l) => l.trim()).filter(Boolean);
+        const isList = lines.length > 0 && lines.every((l) => /^[-*•]\s+/.test(l));
+
+        if (isList) {
+          return (
+            <ul key={pIdx} style={{ margin: "10px 0", paddingLeft: "22px" }}>
+              {lines.map((l, lIdx) => (
+                <li key={lIdx} style={{ marginBottom: "5px", lineHeight: 1.6 }}>
+                  {formatInlineText(l.replace(/^[-*•]\s+/, ""))}
+                </li>
+              ))}
+            </ul>
+          );
+        }
+
+        // Check if entire paragraph is a section header like "**Symptoms, Timeline, and Reason...**"
+        const isHeader = /^\*\*([^*]+)\*\*[:.]?$/.test(p.trim());
+        if (isHeader) {
+          const match = p.trim().match(/^\*\*([^*]+)\*\*[:.]?$/);
+          return (
+            <h4
+              key={pIdx}
+              style={{
+                margin: "18px 0 8px 0",
+                fontSize: "1.05rem",
+                fontWeight: 750,
+                color: "var(--foreground, #0f172a)",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {match ? match[1] : p}
+            </h4>
+          );
+        }
+
+        return (
+          <p key={pIdx} style={{ margin: "10px 0", lineHeight: 1.65 }}>
+            {formatInlineText(p)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
 
 function BrandMark() {
   return (
@@ -77,6 +179,231 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
+type UploadStageInfo = {
+  stage: "uploading" | "extracting" | "summarizing" | "saving" | "completed";
+  message: string;
+  percent: number;
+};
+
+function UploadProgressFeed({
+  progress,
+  elapsed,
+}: {
+  progress: UploadStageInfo | null;
+  elapsed: number;
+}) {
+  if (!progress) return null;
+
+  const stages = [
+    { id: "uploading", label: "1. Upload File" },
+    { id: "extracting", label: "2. Extract Text (OCR)" },
+    { id: "summarizing", label: "3. Summarize (Llama 3.2 3B)" },
+    { id: "saving", label: "4. Workspace Ready" },
+  ];
+
+  const getStepStatus = (stepId: string) => {
+    const order = ["uploading", "extracting", "summarizing", "saving", "completed"];
+    const currentIdx = order.indexOf(progress.stage);
+    const stepIdx = order.indexOf(stepId);
+    if (currentIdx > stepIdx) return "completed";
+    if (currentIdx === stepIdx) return "active";
+    return "pending";
+  };
+
+  return (
+    <div className="upload-progress-feed" role="status" aria-live="polite">
+      <div className="upload-progress-header">
+        <span className="hw-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+          NVIDIA GTX 1650 (4 GB VRAM) Active
+        </span>
+        <span className="timer">⏱ {elapsed.toFixed(1)}s elapsed</span>
+      </div>
+
+      <div className="upload-progress-bar-track" aria-hidden="true">
+        <div
+          className="upload-progress-bar-fill"
+          style={{ width: `${Math.min(100, Math.max(8, progress.percent))}%` }}
+        />
+      </div>
+
+      <div className="upload-stages-stepper">
+        {stages.map((st) => {
+          const status = getStepStatus(st.id);
+          return (
+            <div key={st.id} className={`upload-stage-step ${status}`}>
+              {status === "completed" ? (
+                <span style={{ color: "#2c6552", fontWeight: 700 }}>✓</span>
+              ) : status === "active" ? (
+                <Spinner />
+              ) : (
+                <span style={{ opacity: 0.4 }}>○</span>
+              )}
+              <span>{st.label}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="upload-current-status">
+        <Spinner />
+        <span>{progress.message}</span>
+      </div>
+    </div>
+  );
+}
+
+function TranslationProgressFeed({
+  language,
+  status,
+  progress,
+  currentChunk,
+}: {
+  language: TranslationLanguage;
+  status: string;
+  progress: { completed: number; total: number } | null;
+  currentChunk?: string;
+}) {
+  const langLabel = language === "hi" ? "हिन्दी (Hindi)" : language === "mr" ? "मराठी (Marathi)" : "தமிழ் (Tamil)";
+  const total = progress?.total || 0;
+  const completed = progress?.completed || 0;
+  const percent = total > 0 ? Math.round((completed / total) * 100) : completed > 0 ? 100 : 15;
+
+  return (
+    <div className="translation-progress-feed" role="status" aria-live="polite">
+      <div className="translation-progress-header">
+        <div className="translation-progress-title">
+          <span className="lang-pill">{langLabel}</span>
+          <span className="hw-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            Local GPU Accelerated (GTX 1650)
+          </span>
+        </div>
+        {total > 0 && (
+          <span className="progress-pill">
+            {completed}/{total} sections ({percent}%)
+          </span>
+        )}
+      </div>
+
+      <div className="translation-progress-bar-track" aria-hidden="true">
+        <div
+          className="translation-progress-bar-fill"
+          style={{ width: `${Math.min(100, Math.max(10, percent))}%` }}
+        />
+      </div>
+
+      <div className="translation-stages-row">
+        <div className={`translation-stage-chip ${completed === 0 ? "active" : "done"}`}>
+          {completed > 0 ? <span style={{ color: "#2c6552", fontWeight: 700 }}>✓</span> : <Spinner />}
+          <span>1. Model Initialized</span>
+        </div>
+        <div className={`translation-stage-chip ${completed > 0 && completed < total ? "active" : completed >= total && total > 0 ? "done" : "pending"}`}>
+          {completed >= total && total > 0 ? <span style={{ color: "#2c6552", fontWeight: 700 }}>✓</span> : completed > 0 ? <Spinner /> : "○"}
+          <span>2. Summary Translated</span>
+        </div>
+        <div className={`translation-stage-chip ${completed > 0 && completed < total ? "active" : completed >= total && total > 0 ? "done" : "pending"}`}>
+          {completed >= total && total > 0 ? <span style={{ color: "#2c6552", fontWeight: 700 }}>✓</span> : completed > 0 ? <Spinner /> : "○"}
+          <span>3. Sections ({completed}/{total || "..."})</span>
+        </div>
+      </div>
+
+      <div className="translation-live-info">
+        <div className="translation-current-status">
+          <Spinner />
+          <span>{status || "Translating report sections into vernacular..."}</span>
+        </div>
+        {currentChunk && (
+          <div className="translation-chunk-preview">
+            <span className="preview-label">Latest translated section:</span>
+            <p className="preview-text">&ldquo;{currentChunk.slice(0, 160)}...&rdquo;</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function getLanguageName(code: string): string {
+  switch (code) {
+    case "hi":
+      return "Hindi";
+    case "mr":
+      return "Marathi";
+    case "ta":
+      return "Tamil";
+    case "en":
+      return "English";
+    default:
+      return code;
+  }
+}
+
+function QueuedProgressFeed({
+  queuedLanguage,
+  activeLanguage,
+  queuePosition,
+  chain,
+}: {
+  queuedLanguage: TranslationLanguage;
+  activeLanguage: TranslationLanguage;
+  queuePosition: number;
+  chain: TranslationLanguage[];
+}) {
+  const queuedName = getLanguageName(queuedLanguage);
+  const activeName = getLanguageName(activeLanguage);
+
+  return (
+    <div className="queued-progress-feed" role="status" aria-live="polite">
+      <div className="translation-progress-header">
+        <div className="translation-progress-title">
+          <span className="lang-pill queued-pill">⏳ {queuedName} (Queued #{queuePosition})</span>
+          <span className="hw-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            Sequential GPU Queue (GTX 1650)
+          </span>
+        </div>
+        <span className="queue-badge-chip">Position #{queuePosition} in Queue</span>
+      </div>
+
+      <div className="queue-pipeline-visual">
+        <span className="queue-pipeline-label">Pipeline Queue:</span>
+        <div className="queue-chips-track">
+          {chain.map((lang) => {
+            const isCur = lang === activeLanguage;
+            const isThis = lang === queuedLanguage;
+            return (
+              <span
+                key={lang}
+                className={`queue-step-chip ${isCur ? "active-step" : isThis ? "target-step" : "waiting-step"}`}
+              >
+                {isCur ? <Spinner /> : isThis ? "⏳" : "○"} {getLanguageName(lang)}
+                {isCur ? " (Translating)" : isThis ? " (Waiting)" : ""}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="translation-live-info">
+        <div className="translation-current-status queued-status-text">
+          <Spinner />
+          <span>
+            {activeName} translation is currently in progress (translating summary &amp; extracted text).
+            {" "}{queuedName} will automatically begin translation once {activeName} completes.
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -92,8 +419,25 @@ export default function Home() {
   const [translationError, setTranslationError] = useState("");
   const [translationStatus, setTranslationStatus] = useState("");
   const [translationProgress, setTranslationProgress] = useState<{ completed: number; total: number } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadStageInfo | null>(null);
+  const [uploadElapsedSec, setUploadElapsedSec] = useState<number>(0);
+
+  // Chatbot state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatQuestion, setChatQuestion] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
+  const [retranslatingLang, setRetranslatingLang] = useState<string | null>(null);
+
+  // Sequential Translation Queue State
+  const [translationQueue, setTranslationQueue] = useState<TranslationLanguage[]>([]);
+  const [activeTranslatingLang, setActiveTranslatingLang] = useState<TranslationLanguage | null>(null);
+  const [isInitialAutoTranslating, setIsInitialAutoTranslating] = useState<boolean>(false);
+
+  const queueRef = useRef<TranslationLanguage[]>([]);
+  const isProcessingQueueRef = useRef<boolean>(false);
   const uploadFormRef = useRef<HTMLFormElement>(null);
   const translationSessionRef = useRef(0);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.me()
@@ -128,7 +472,39 @@ export default function Home() {
     setTranslationStatus("");
     setTranslationProgress(null);
     setTranslationLoadingKey(null);
+    setChatMessages([]);
+    setChatQuestion("");
+    queueRef.current = [];
+    setTranslationQueue([]);
+    setActiveTranslatingLang(null);
+    setIsInitialAutoTranslating(false);
+    isProcessingQueueRef.current = false;
+
+    if (selectedId) {
+      api.getConversation(selectedId)
+        .then((conv) => setChatMessages(conv.messages ?? []))
+        .catch(() => undefined);
+    }
   }, [selectedId]);
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, chatBusy]);
+
+  const selectedDocument = documents.find((document) => document.id === selectedId) ?? null;
+
+  // Poll for background translation queue progress
+  useEffect(() => {
+    if (!selectedDocument || selectedDocument.processing_status !== "translating") return;
+
+    const interval = setInterval(() => {
+      api.document(selectedDocument.id).then((freshDoc) => {
+        setDocuments((current) => current.map((d) => (d.id === freshDoc.id ? freshDoc : d)));
+      }).catch(() => undefined);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [selectedDocument?.id, selectedDocument?.processing_status]);
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -163,15 +539,53 @@ export default function Home() {
     const file = (event.currentTarget.elements.namedItem("file") as HTMLInputElement).files?.[0];
     if (!file) return;
     setBusy(true);
+    setUploadElapsedSec(0);
+    setUploadProgress({
+      stage: "uploading",
+      message: "Sending file to server...",
+      percent: 15,
+    });
+
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      setUploadElapsedSec(+((Date.now() - startTime) / 1000).toFixed(1));
+    }, 100);
+
     try {
-      const document = await api.upload(file);
+      const document = await api.upload(file, (evt) => {
+        if (evt.stage && evt.message) {
+          setUploadProgress({
+            stage: evt.stage as UploadStageInfo["stage"],
+            message: evt.message,
+            percent: evt.percent ?? 50,
+          });
+        }
+      });
+      clearInterval(timer);
+      setUploadProgress({
+        stage: "completed",
+        message: "Clinical summary ready!",
+        percent: 100,
+      });
+      setTimeout(() => {
+        setUploadProgress(null);
+      }, 1500);
       setDocuments((current) => [document, ...current]);
       setSelectedId(document.id);
       uploadFormRef.current?.reset();
       setSelectedFilename("");
+
+      // Start the sequential initial translation pipeline: hi -> mr -> ta
+      setIsInitialAutoTranslating(true);
+      queueRef.current = ["hi", "mr", "ta"];
+      setTranslationQueue(["hi", "mr", "ta"]);
+      void processQueue(document.id, { hi: false, mr: false, ta: false });
     } catch (e) {
+      clearInterval(timer);
+      setUploadProgress(null);
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
+      clearInterval(timer);
       setBusy(false);
     }
   }
@@ -200,6 +614,67 @@ export default function Home() {
     }
   }
 
+
+  async function handleSendChat(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedDocument || !chatQuestion.trim() || chatBusy) return;
+
+    const query = chatQuestion.trim();
+    setChatQuestion("");
+    const userTempMsg: ChatMessage = {
+      id: `temp-${Date.now()}`,
+      role: "user",
+      content: query,
+      created_at: new Date().toISOString(),
+    };
+    setChatMessages((prev) => [...prev, userTempMsg]);
+    setChatBusy(true);
+
+    let assistantAccumulated = "";
+    const assistantTempId = `asst-${Date.now()}`;
+
+    try {
+      await api.chatStream(
+        selectedDocument.id,
+        query,
+        (token) => {
+          assistantAccumulated += token;
+          setChatMessages((prev) => {
+            const hasAsst = prev.some((m) => m.id === assistantTempId);
+            if (!hasAsst) {
+              return [
+                ...prev,
+                { id: assistantTempId, role: "assistant", content: assistantAccumulated, created_at: new Date().toISOString() },
+              ];
+            }
+            return prev.map((m) =>
+              m.id === assistantTempId ? { ...m, content: assistantAccumulated } : m
+            );
+          });
+        },
+        (fullText) => {
+          setChatMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantTempId ? { ...m, content: fullText || assistantAccumulated } : m
+            )
+          );
+        }
+      );
+    } catch (e) {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `err-${Date.now()}`,
+          role: "assistant",
+          content: `Unable to get answer: ${e instanceof Error ? e.message : "Chat service unavailable"}`,
+          created_at: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setChatBusy(false);
+    }
+  }
+
   async function logout() {
     await api.logout();
     translationSessionRef.current += 1;
@@ -212,97 +687,192 @@ export default function Home() {
     setTranslationError("");
     setTranslationStatus("");
     setTranslationProgress(null);
+    setChatMessages([]);
   }
 
-  const selectedDocument = documents.find((document) => document.id === selectedId) ?? null;
   const translationKey = selectedDocument && activeLanguage !== "en"
     ? `${selectedDocument.id}:${activeLanguage}`
     : null;
   const activeTranslation = translationKey ? translations[translationKey] : null;
 
-  async function changeLanguage(language: "en" | TranslationLanguage) {
-    setActiveLanguage(language);
-    setTranslationError("");
-    if (!selectedDocument || language === "en") return;
-
-    const key = `${selectedDocument.id}:${language}`;
-    const cachedTranslation = translations[key];
-    if (
-      (cachedTranslation?.summary !== null && cachedTranslation?.summary !== undefined && cachedTranslation.extracted_text !== null)
-      || translationLoadingKey === key
-    ) return;
-
+  async function executeStreamingTranslation(
+    docId: string,
+    language: TranslationLanguage,
+    force: boolean = false
+  ) {
+    const key = `${docId}:${language}`;
     const sessionId = translationSessionRef.current;
     setTranslationLoadingKey(key);
-    setTranslationStatus("Starting local translation...");
+    setTranslationStatus(`Loading translation engine for ${getLanguageName(language)}...`);
     setTranslationProgress(null);
-    setTranslations((current) => ({
-      ...current,
-      [key]: {
-        language,
-        summary: cachedTranslation?.summary ?? null,
-        extracted_text: cachedTranslation?.extracted_text ?? null,
-        extracted_chunks: cachedTranslation?.extracted_chunks ?? [],
-      },
-    }));
+    setTranslationError("");
+
+    if (force) {
+      setTranslations((current) => ({
+        ...current,
+        [key]: {
+          language,
+          summary: null,
+          extracted_text: null,
+          extracted_chunks: [],
+        },
+      }));
+    }
+
     try {
-      await api.translateDocument(selectedDocument.id, language, (event) => {
-        if (translationSessionRef.current !== sessionId) return;
-        if (event.type === "status") {
-          setTranslationStatus(event.message);
-        } else if (event.type === "summary") {
-          setTranslations((current) => ({
-            ...current,
-            [key]: {
-              ...current[key],
-              language,
-              summary: event.text,
-              extracted_text: current[key]?.extracted_text ?? null,
-              extracted_chunks: current[key]?.extracted_chunks ?? [],
-            },
-          }));
-          setTranslationStatus("Summary translated. Translating extracted text...");
-        } else if (event.type === "text_progress") {
-          setTranslationProgress({ completed: event.completed, total: event.total });
-          if (event.chunk) {
+      await api.translateDocument(
+        docId,
+        language,
+        (event) => {
+          if (translationSessionRef.current !== sessionId) return;
+          if (event.type === "status") {
+            setTranslationStatus(event.message);
+          } else if (event.type === "summary") {
+            setTranslations((current) => ({
+              ...current,
+              [key]: {
+                ...current[key],
+                language,
+                summary: event.text,
+                extracted_text: current[key]?.extracted_text ?? null,
+                extracted_chunks: current[key]?.extracted_chunks ?? [],
+              },
+            }));
+            setDocuments((curr) =>
+              curr.map((d) => {
+                if (d.id !== docId) return d;
+                const updated = { ...d };
+                if (language === "hi") updated.hindi_summary = event.text;
+                else if (language === "mr") updated.marathi_summary = event.text;
+                else if (language === "ta") updated.tamil_summary = event.text;
+                return updated;
+              })
+            );
+            setTranslationStatus(`Summary translated. Translating sections into ${getLanguageName(language)}...`);
+          } else if (event.type === "text_progress") {
+            setTranslationProgress({ completed: event.completed, total: event.total });
+            if (event.chunk) {
+              setTranslations((current) => {
+                const prevChunks = current[key]?.extracted_chunks ?? [];
+                return {
+                  ...current,
+                  [key]: {
+                    ...current[key],
+                    language,
+                    summary: current[key]?.summary ?? null,
+                    extracted_text: null,
+                    extracted_chunks: [...prevChunks, event.chunk],
+                  },
+                };
+              });
+            }
+          } else if (event.type === "complete") {
             setTranslations((current) => ({
               ...current,
               [key]: {
                 ...current[key],
                 language,
                 summary: current[key]?.summary ?? null,
-                extracted_text: null,
-                extracted_chunks: [...(current[key]?.extracted_chunks ?? []), event.chunk],
+                extracted_text: event.extracted_text,
+                extracted_chunks: [],
               },
             }));
+            setTranslationStatus("");
+            setTranslationProgress(null);
+            api.document(docId).then((fresh) => {
+              setDocuments((curr) => curr.map((d) => (d.id === fresh.id ? fresh : d)));
+            }).catch(() => undefined);
           }
-        } else if (event.type === "complete") {
-          setTranslations((current) => ({
-            ...current,
-            [key]: {
-              ...current[key],
-              language,
-              summary: current[key]?.summary ?? null,
-              extracted_text: event.extracted_text,
-              extracted_chunks: [],
-            },
-          }));
-          setTranslationStatus("");
-          setTranslationProgress(null);
-        }
-      });
+        },
+        force
+      );
     } catch (e) {
       if (translationSessionRef.current === sessionId) {
-        setTranslationError(e instanceof Error ? e.message : "Translation failed");
+        setTranslationError(e instanceof Error ? e.message : `Translation for ${getLanguageName(language)} failed`);
       }
     } finally {
       if (translationSessionRef.current === sessionId) {
-        setTranslationLoadingKey((current) => current === key ? null : current);
+        setTranslationLoadingKey((current) => (current === key ? null : current));
         setTranslationStatus("");
         setTranslationProgress(null);
       }
     }
   }
+
+  async function processQueue(docId: string, forceMap: Record<string, boolean> = {}) {
+    if (isProcessingQueueRef.current) return;
+    isProcessingQueueRef.current = true;
+
+    try {
+      while (queueRef.current.length > 0) {
+        const nextLang = queueRef.current[0];
+        setActiveTranslatingLang(nextLang);
+        const isForce = !!forceMap[nextLang];
+
+        await executeStreamingTranslation(docId, nextLang, isForce);
+
+        // Remove the processed language from queueRef and sync state
+        queueRef.current = queueRef.current.filter((l) => l !== nextLang);
+        setTranslationQueue([...queueRef.current]);
+      }
+    } finally {
+      isProcessingQueueRef.current = false;
+      setActiveTranslatingLang(null);
+      setIsInitialAutoTranslating(false);
+    }
+  }
+
+  function handleQueueRetranslate(language: TranslationLanguage) {
+    if (!selectedDocument) return;
+    // Disabled while initial auto-translation of all 3 is running
+    if (isInitialAutoTranslating) return;
+    // Disabled if already in queue or currently translating
+    if (queueRef.current.includes(language) || activeTranslatingLang === language) return;
+
+    const nextQueue = [...queueRef.current, language];
+    queueRef.current = nextQueue;
+    setTranslationQueue(nextQueue);
+    setActiveLanguage(language);
+
+    void processQueue(selectedDocument.id, { [language]: true });
+  }
+
+  function changeLanguage(language: "en" | TranslationLanguage) {
+    setActiveLanguage(language);
+    setTranslationError("");
+    if (!selectedDocument || language === "en") return;
+
+    const key = `${selectedDocument.id}:${language}`;
+    const cachedTranslation = translations[key];
+    if (cachedTranslation?.summary && cachedTranslation?.extracted_text) {
+      return;
+    }
+    // If already in queue or actively translating, do nothing
+    if (queueRef.current.includes(language) || activeTranslatingLang === language) {
+      return;
+    }
+
+    // Otherwise add to queue and process
+    const nextQueue = [...queueRef.current, language];
+    queueRef.current = nextQueue;
+    setTranslationQueue(nextQueue);
+    void processQueue(selectedDocument.id, { [language]: false });
+  }
+
+  // Get localized summary text for active tab
+  const displaySummary =
+    activeLanguage === "en"
+      ? selectedDocument?.summary
+      : activeLanguage === "hi"
+      ? selectedDocument?.hindi_summary || activeTranslation?.summary
+      : activeLanguage === "mr"
+      ? selectedDocument?.marathi_summary || activeTranslation?.summary
+      : selectedDocument?.tamil_summary || activeTranslation?.summary;
+
+  const currentLangStatus =
+    activeLanguage !== "en" && selectedDocument?.translations_status
+      ? selectedDocument.translations_status[activeLanguage]
+      : null;
 
   if (checkingSession) {
     return (
@@ -420,7 +990,7 @@ export default function Home() {
         </div>
 
         <div className="library-heading">
-          <span>RECENT REPORTS</span>
+          <span>ALL UPLOADED RECORDS</span>
           <span>{String(documents.length).padStart(2, "0")}</span>
         </div>
         <nav className="document-nav" aria-label="Uploaded reports">
@@ -432,12 +1002,14 @@ export default function Home() {
               key={document.id}
               onClick={() => setSelectedId(document.id)}
               aria-current={document.id === selectedId ? "page" : undefined}
-              title={document.original_filename}
+              title={`${document.original_filename} (ID: ${document.id.slice(0, 8)})`}
             >
               <span className="document-link-icon"><FileGlyph image={document.media_type.startsWith("image/")} /></span>
               <span className="document-link-copy">
                 <span className="document-link-name">{document.original_filename}</span>
-                <span className="document-link-date">{formatDate(document.created_at)}</span>
+                <span className="document-link-date">
+                  {formatDate(document.created_at)} · {document.processing_status}
+                </span>
               </span>
               {document.id === selectedId && <span className="document-selected-mark" aria-hidden="true" />}
             </button>
@@ -460,7 +1032,7 @@ export default function Home() {
               </svg>
             </button>
           </div>
-          <p className="sidebar-footnote">Medical clarity, thoughtfully delivered.</p>
+          <p className="sidebar-footnote">NVIDIA GTX 1650 Accelerated · Local AI</p>
         </div>
       </aside>
 
@@ -480,7 +1052,7 @@ export default function Home() {
               <span className="upload-icon"><UploadGlyph /></span>
               <div>
                 <h2 id="upload-title">Add a report</h2>
-                <p>Choose a PDF or image to extract and understand its contents.</p>
+                <p>Choose a PDF or image. Every upload creates an independent record.</p>
               </div>
             </div>
             <form className="upload-form" ref={uploadFormRef} onSubmit={upload}>
@@ -501,6 +1073,7 @@ export default function Home() {
                 {!busy && <span aria-hidden="true">↗</span>}
               </button>
             </form>
+            <UploadProgressFeed progress={uploadProgress} elapsed={uploadElapsedSec} />
           </section>
 
           {error && <p className="global-alert" role="alert">{error}</p>}
@@ -509,12 +1082,14 @@ export default function Home() {
             <article className="report-view">
               <header className="report-header">
                 <div className="report-heading">
-                  <span className="eyebrow">REPORT OVERVIEW</span>
+                  <span className="eyebrow">RECORD OVERVIEW · ID: {selectedDocument.id.slice(0, 8)}</span>
                   <div className="report-title-row">
                     <span className="report-file-icon"><FileGlyph image={selectedDocument.media_type.startsWith("image/")} /></span>
                     <h2 title={selectedDocument.original_filename}>{selectedDocument.original_filename}</h2>
                   </div>
-                  <p className="report-date">Added {formatDate(selectedDocument.created_at)}</p>
+                  <p className="report-date">
+                    Added {formatDate(selectedDocument.created_at)} · Status: <strong>{selectedDocument.processing_status.toUpperCase()}</strong>
+                  </p>
                 </div>
                 <button
                   className="button button-danger-ghost"
@@ -540,20 +1115,80 @@ export default function Home() {
                     aria-controls="translated-report"
                     className={activeLanguage === code ? "active" : ""}
                     onClick={() => void changeLanguage(code)}
-                  >{label}</button>
+                  >
+                    {label}
+                  </button>
                 ))}
-                <span className="language-note">Translations are generated locally</span>
+                <span className="language-note">IndicTrans2 / M2M100 Local Translation</span>
               </nav>
 
-              {translationKey !== null && translationLoadingKey === translationKey && (
-                <div className="translation-status" role="status" aria-live="polite">
-                  <Spinner />
-                  <span>{translationStatus || "Translating locally..."}</span>
-                  {translationProgress && translationProgress.total > 0 && (
-                    <span className="progress-count">{translationProgress.completed}/{translationProgress.total} sections</span>
-                  )}
-                </div>
+              {/* Retranslation and Queue Controls */}
+              <div className="retranslate-panel">
+                <span className="retranslate-label">Queue / Retranslate:</span>
+                {(["hi", "mr", "ta"] as TranslationLanguage[]).map((lang) => {
+                  const label = getLanguageName(lang);
+                  const isTranslating = activeTranslatingLang === lang;
+                  const isQueued = translationQueue.includes(lang) && !isTranslating;
+                  const isDisabled = isInitialAutoTranslating || isTranslating || isQueued;
+                  const queuePos = translationQueue.indexOf(lang) + 1;
+
+                  let badgeText = "READY";
+                  let badgeClass = "status-completed";
+                  if (isTranslating) {
+                    badgeText = "TRANSLATING...";
+                    badgeClass = "status-translating";
+                  } else if (isQueued) {
+                    badgeText = `QUEUED #${queuePos}`;
+                    badgeClass = "status-pending";
+                  } else if (isInitialAutoTranslating) {
+                    badgeText = "INITIAL QUEUE";
+                    badgeClass = "status-pending";
+                  }
+
+                  return (
+                    <button
+                      key={lang}
+                      className="button-retranslate"
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() => void handleQueueRetranslate(lang)}
+                      title={
+                        isInitialAutoTranslating
+                          ? "Initial 3-language auto-translation in progress (Hindi -> Marathi -> Tamil)"
+                          : isTranslating
+                          ? `${label} is currently translating on GPU`
+                          : isQueued
+                          ? `${label} is queued at position #${queuePos}`
+                          : `Add ${label} to translation queue`
+                      }
+                    >
+                      <span>Re-translate {label}</span>
+                      <span className={`status-badge ${badgeClass}`}>{badgeText}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Translation Progress Feed when active tab is currently translating */}
+              {activeLanguage !== "en" && activeLanguage === activeTranslatingLang && (
+                <TranslationProgressFeed
+                  language={activeLanguage}
+                  status={translationStatus}
+                  progress={translationProgress}
+                  currentChunk={activeTranslation?.extracted_chunks.slice(-1)[0]}
+                />
               )}
+
+              {/* Queued Progress Feed when active tab is waiting for another language to complete */}
+              {activeLanguage !== "en" && activeTranslatingLang !== null && translationQueue.includes(activeLanguage) && activeLanguage !== activeTranslatingLang && (
+                <QueuedProgressFeed
+                  queuedLanguage={activeLanguage}
+                  activeLanguage={activeTranslatingLang}
+                  queuePosition={translationQueue.indexOf(activeLanguage) + 1}
+                  chain={translationQueue}
+                />
+              )}
+
               {translationError && <p className="global-alert translation-alert" role="alert">{translationError}</p>}
 
               <div id="translated-report" className="report-content" role="tabpanel" aria-labelledby={`language-tab-${activeLanguage}`}>
@@ -565,21 +1200,36 @@ export default function Home() {
                     <span className="section-label">SUMMARY</span>
                   </div>
                   <div className="summary-body">
-                    <h3 id="summary-heading">The report, made clearer.</h3>
+                    <div className="summary-meta-row">
+                      <h3 id="summary-heading">The report, made clearer.</h3>
+                      {activeLanguage === "en" && selectedDocument.summary_method && (
+                        <span
+                          className={`summary-badge ${
+                            selectedDocument.summary_method === "llm"
+                              ? "summary-badge-llm"
+                              : "summary-badge-fallback"
+                          }`}
+                        >
+                          {selectedDocument.summary_method === "llm"
+                            ? "✦ LLM Generated (Llama 3.2 3B)"
+                            : "Extractive Fallback"}
+                        </span>
+                      )}
+                    </div>
                     <div className="summary-copy">
-                      {activeLanguage === "en" ? (
-                        selectedDocument.summary
-                          ? selectedDocument.summary.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => <p key={index}>{paragraph}</p>)
-                          : <p className="muted-copy">{selectedDocument.extracted_text ? "A summary is unavailable for this report." : "No text was detected, so a summary could not be generated."}</p>
-                      ) : activeTranslation?.summary ? (
-                        activeTranslation.summary.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => <p key={index}>{paragraph}</p>)
+                      {displaySummary ? (
+                        <FormattedMarkdown content={displaySummary} />
+                      ) : activeLanguage !== "en" && activeLanguage === activeTranslatingLang ? (
+                        <p className="muted-copy">
+                          <Spinner /> Translating summary into {getLanguageName(activeLanguage)}...
+                        </p>
+                      ) : activeLanguage !== "en" && activeTranslatingLang !== null && translationQueue.includes(activeLanguage) ? (
+                        <p className="muted-copy">
+                          ⏳ {getLanguageName(activeTranslatingLang)} translation is in progress. {getLanguageName(activeLanguage)} summary and extracted text will be translated next.
+                        </p>
                       ) : (
                         <p className="muted-copy">
-                          {translationError
-                            ? "Summary translation unavailable."
-                            : translationLoadingKey === translationKey
-                              ? "Translating the summary..."
-                              : "Choose a language to translate this report."}
+                          Summary unavailable for this language. Click re-translate above to generate.
                         </p>
                       )}
                     </div>
@@ -601,19 +1251,81 @@ export default function Home() {
                       </div>
                       <h3 id="extracted-text-heading">Extracted text</h3>
                     </div>
-                    <span className="source-language">{activeLanguage === "en" ? "ORIGINAL · EN" : `TRANSLATED · ${activeLanguage.toUpperCase()}`}</span>
+                    <span className="source-language">
+                      {activeLanguage === "en" ? "ORIGINAL · EN" : `TRANSLATED · ${activeLanguage.toUpperCase()}`}
+                    </span>
                   </div>
-                  <pre>{activeLanguage === "en"
-                    ? (selectedDocument.extracted_text || "No text was detected.")
-                    : activeTranslation?.extracted_text || (activeTranslation?.extracted_chunks.length
-                      ? activeTranslation.extracted_chunks.join("\n\n")
-                      : translationError
-                        ? "Text translation unavailable. Switch to English to view the original."
-                        : translationLoadingKey === translationKey
-                          ? "Translating extracted text..."
-                          : "Choose a language to translate the extracted text.")}</pre>
+                  <pre>
+                    {activeLanguage === "en"
+                      ? selectedDocument.extracted_text || "No text was detected."
+                      : activeLanguage === activeTranslatingLang
+                      ? activeTranslation?.extracted_chunks.length
+                        ? activeTranslation.extracted_chunks.join("\n\n")
+                        : "Translating extracted text into " + getLanguageName(activeLanguage) + " in sections..."
+                      : activeTranslatingLang !== null && translationQueue.includes(activeLanguage)
+                      ? `Queued: ${getLanguageName(activeTranslatingLang)} translation is currently in progress. ${getLanguageName(activeLanguage)} will begin automatically once ${getLanguageName(activeTranslatingLang)} completes.`
+                      : activeTranslation?.extracted_text ||
+                        (activeTranslation?.extracted_chunks.length
+                          ? activeTranslation.extracted_chunks.join("\n\n")
+                          : selectedDocument.extracted_text || "No text was detected.")}
+                  </pre>
                 </section>
               </div>
+
+              {/* Record-Specific Chatbot Sidebar */}
+              <section className="chatbot-card" aria-labelledby="chat-heading">
+                <div className="chatbot-header">
+                  <div className="chatbot-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span id="chat-heading">Document Assistant</span>
+                  </div>
+                  <span className="chatbot-pill">Grounded in Record</span>
+                </div>
+
+                <div className="chat-history" role="log" aria-live="polite">
+                  {chatMessages.length === 0 ? (
+                    <p className="chat-empty">
+                      Ask any question about this document (e.g., &quot;What are the abnormal findings?&quot; or &quot;What is the treatment plan?&quot;).
+                    </p>
+                  ) : (
+                    chatMessages.map((msg) => (
+                      <div key={msg.id} className={`chat-message chat-message-${msg.role}`}>
+                        <strong>{msg.role === "user" ? "You" : "MedLingua Assistant"}</strong>
+                        <div style={{ margin: "4px 0 0 0" }}>
+                          <FormattedMarkdown content={msg.content} />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {chatBusy && !chatMessages.some((m) => m.role === "assistant" && m.id.startsWith("asst-")) && (
+                    <div className="chat-message chat-message-assistant">
+                      <span>Thinking with local Llama 3.2 3B...</span>
+                    </div>
+                  )}
+                  <div ref={chatBottomRef} />
+                </div>
+
+                <form className="chat-form" onSubmit={handleSendChat}>
+                  <input
+                    className="chat-input"
+                    type="text"
+                    value={chatQuestion}
+                    onChange={(e) => setChatQuestion(e.target.value)}
+                    placeholder="Ask a question about this medical report..."
+                    disabled={chatBusy}
+                    aria-label="Question about report"
+                  />
+                  <button className="chat-submit" type="submit" disabled={chatBusy || !chatQuestion.trim()}>
+                    {chatBusy ? <Spinner /> : "Send ↗"}
+                  </button>
+                </form>
+                <div className="chat-disclaimer">
+                  Responses are generated locally from this record. Informational reading aid only.
+                </div>
+              </section>
+
               <footer className="report-footer">
                 <span><BrandMark /> MedLingua</span>
                 <span>Always compare summaries and translations with the original document.</span>
@@ -632,9 +1344,9 @@ export default function Home() {
               <span className="eyebrow">A CLEARER PICTURE STARTS HERE</span>
               <h2 id="empty-title">{documents.length ? "Select a report to begin." : "Your reports, understood."}</h2>
               <p>{documents.length
-                ? "Choose a report from your library to review its summary and extracted text."
+                ? "Choose a report from your library to review its summary, vernacular translations, and chat with it."
                 : "Upload a medical report to extract its text, explore a plain-language summary, and translate it when you need to."}</p>
-              <span className="empty-caption"><span className="stamp-dot" /> PRIVATE BY DESIGN · LOCAL PROCESSING</span>
+              <span className="empty-caption"><span className="stamp-dot" /> PRIVATE BY DESIGN · LOCAL HARDWARE ACCELERATED</span>
             </section>
           )}
           <footer className="workspace-footer">

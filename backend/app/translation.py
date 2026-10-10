@@ -1,7 +1,11 @@
-import re
+import json
 import logging
+import re
+import urllib.request
 from threading import RLock
 from typing import Callable, Literal
+
+from .config import get_settings
 
 TargetLanguage = Literal["hi", "mr", "ta"]
 
@@ -10,12 +14,22 @@ LANGUAGES: dict[TargetLanguage, str] = {
     "mr": "Marathi",
     "ta": "Tamil",
 }
-MODEL_NAME = "facebook/m2m100_418M"
-_CHUNK_TOKEN_LIMIT = 256
+
+# AI4Bharat IndicTrans2 Language Tag Mapping
+INDICTRANS2_TAGS: dict[TargetLanguage, str] = {
+    "hi": "hin_Deva",
+    "mr": "mar_Deva",
+    "ta": "tam_Taml",
+}
+SRC_LANG = "eng_Latn"
+M2M100_MODEL_NAME = "facebook/m2m100_418M"
+
 _MODEL_LOCK = RLock()
 _MODEL = None
 _TOKENIZER = None
+_PROCESSOR = None
 _MODEL_DEVICE = "cpu"
+_ENGINE_TYPE = "indictrans2"  # "indictrans2" or "m2m100"
 logger = logging.getLogger(__name__)
 
 
@@ -27,64 +41,320 @@ def _select_device(cuda_available: bool) -> str:
     return "cuda" if cuda_available else "cpu"
 
 
-def _load_model():
-    global _MODEL, _TOKENIZER, _MODEL_DEVICE
+def _unload_ollama_to_free_vram() -> None:
+    """Releases Ollama LLM from GPU memory so translation model has maximum available VRAM."""
+    settings = get_settings()
+    try:
+        req = urllib.request.Request(
+            f"{settings.llm_api_base}/api/generate",
+            data=json.dumps({"model": settings.llm_model, "keep_alive": 0}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=2):
+            pass
+        logger.info("Unloaded Ollama LLM to free VRAM for translation model.")
+    except Exception:
+        pass
+
+
+def _load_indictrans2():
+    global _MODEL, _TOKENIZER, _PROCESSOR, _MODEL_DEVICE, _ENGINE_TYPE
+    if _MODEL is not None and _TOKENIZER is not None and _PROCESSOR is not None:
+        return _MODEL, _TOKENIZER, _PROCESSOR
+
+    import sys
+    import types
+    import torch
+    import transformers
+    import transformers.tokenization_utils
+    from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+    # Compatibility shim for IndicTransToolkit with modern Transformers
+    if not hasattr(transformers.tokenization_utils, "PreTrainedTokenizerBase"):
+        transformers.tokenization_utils.PreTrainedTokenizerBase = transformers.PreTrainedTokenizerBase
+
+    from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+    if not hasattr(PreTrainedTokenizerBase, "_patched_for_indictrans"):
+        _orig_tokenizer_new = PreTrainedTokenizerBase.__new__
+        def _patched_tokenizer_new(cls, *args, **kwargs):
+            instance = _orig_tokenizer_new(cls)
+            instance._special_tokens_map = dict.fromkeys(instance.SPECIAL_TOKENS_ATTRIBUTES)
+            return instance
+        PreTrainedTokenizerBase.__new__ = _patched_tokenizer_new
+        PreTrainedTokenizerBase._patched_for_indictrans = True
+
+    # Compatibility shim for IndicTrans2 configuration importing deprecated transformers.onnx
+    if "transformers.onnx" not in sys.modules:
+        onnx_mod = types.ModuleType("transformers.onnx")
+        onnx_utils = types.ModuleType("transformers.onnx.utils")
+        onnx_mod.OnnxConfig = type("OnnxConfig", (), {})
+        onnx_mod.OnnxSeq2SeqConfigWithPast = type("OnnxSeq2SeqConfigWithPast", (onnx_mod.OnnxConfig,), {})
+        onnx_utils.compute_effective_axis_dimension = lambda *a, **k: 1
+        onnx_mod.utils = onnx_utils
+        sys.modules["transformers.onnx"] = onnx_mod
+        sys.modules["transformers.onnx.utils"] = onnx_utils
+        transformers.onnx = onnx_mod
+
+    # Compatibility shim for PreTrainedModel._tie_or_clone_weights in transformers v5+
+    from transformers.modeling_utils import PreTrainedModel
+    if not hasattr(PreTrainedModel, "_tie_or_clone_weights"):
+        def _compat_tie_or_clone(self, output_embeddings, input_embeddings):
+            output_embeddings.weight = input_embeddings.weight
+        PreTrainedModel._tie_or_clone_weights = _compat_tie_or_clone
+
+    # Compatibility shim for IndicTransForConditionalGeneration.tie_weights keyword arguments in transformers v5+
+    import transformers.dynamic_module_utils as dmu
+    import transformers.models.auto.auto_factory as af
+    if not getattr(dmu, "_patched_for_indictrans", False):
+        _orig_get_class = dmu.get_class_from_dynamic_module
+        def _patched_get_class(*args, **kwargs):
+            cls = _orig_get_class(*args, **kwargs)
+            if hasattr(cls, "tie_weights"):
+                _orig_tie = cls.tie_weights
+                if not getattr(_orig_tie, "_is_patched", False):
+                    def _compat_tie(self, *a, **kw):
+                        return _orig_tie(self)
+                    _compat_tie._is_patched = True
+                    cls.tie_weights = _compat_tie
+            return cls
+        dmu.get_class_from_dynamic_module = _patched_get_class
+        af.get_class_from_dynamic_module = _patched_get_class
+        dmu._patched_for_indictrans = True
+
+    # Also patch any existing classes already loaded into sys.modules
+    for _mod in list(sys.modules.values()):
+        if _mod and "indictrans" in getattr(_mod, "__name__", ""):
+            for _attr in dir(_mod):
+                _c = getattr(_mod, _attr, None)
+                if isinstance(_c, type) and hasattr(_c, "tie_weights"):
+                    _orig = _c.tie_weights
+                    if not getattr(_orig, "_is_patched", False):
+                        def _w(self, *a, **kw):
+                            return _orig(self)
+                        _w._is_patched = True
+                        _c.tie_weights = _w
+
+    from IndicTransToolkit.processor import IndicProcessor
+
+    settings = get_settings()
+    model_name = settings.indictrans_model_name
+
+    # Hardware device resolution
+    cuda_available = torch.cuda.is_available()
+    if settings.indictrans_device == "cpu":
+        device = "cpu"
+    elif settings.indictrans_device == "cuda":
+        device = "cuda" if cuda_available else "cpu"
+    else:  # "auto"
+        device = "cuda" if cuda_available else "cpu"
+
+    if device == "cuda":
+        _unload_ollama_to_free_vram()
+
+    token = settings.hf_token
+    logger.info("Loading IndicTrans2 (%s) on %s...", model_name, device.upper())
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name,
+        trust_remote_code=True,
+        token=token,
+    )
+    model = AutoModelForSeq2SeqLM.from_pretrained(
+        model_name,
+        trust_remote_code=True,
+        token=token,
+        low_cpu_mem_usage=True,
+    )
+
+    if device == "cuda":
+        model.half()
+        model.to("cuda")
+    else:
+        model.to("cpu")
+
+    model.eval()
+    processor = IndicProcessor(inference=True)
+
+    _MODEL = model
+    _TOKENIZER = tokenizer
+    _PROCESSOR = processor
+    _MODEL_DEVICE = device
+    _ENGINE_TYPE = "indictrans2"
+    logger.info("IndicTrans2 successfully loaded on %s", device.upper())
+    return _MODEL, _TOKENIZER, _PROCESSOR
+
+
+def _load_m2m100():
+    global _MODEL, _TOKENIZER, _PROCESSOR, _MODEL_DEVICE, _ENGINE_TYPE
+    import torch
+    from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
+
+    settings = get_settings()
+    cuda_available = torch.cuda.is_available()
+    device = "cuda" if cuda_available and settings.indictrans_device != "cpu" else "cpu"
+    if device == "cuda":
+        _unload_ollama_to_free_vram()
+
+    logger.info("Loading fallback translation model (%s) on %s...", M2M100_MODEL_NAME, device.upper())
+    tokenizer = M2M100Tokenizer.from_pretrained(M2M100_MODEL_NAME)
+    model = M2M100ForConditionalGeneration.from_pretrained(M2M100_MODEL_NAME)
+
+    if device == "cuda":
+        model.half()
+        model.to("cuda")
+    else:
+        model.to("cpu")
+
+    model.eval()
+    if hasattr(model, "generation_config") and model.generation_config is not None:
+        model.generation_config.max_length = None
+    _MODEL = model
+    _TOKENIZER = tokenizer
+    _PROCESSOR = None
+    _MODEL_DEVICE = device
+    _ENGINE_TYPE = "m2m100"
+    logger.info("M2M100 successfully loaded as fallback translation engine on %s", device.upper())
+    return _MODEL, _TOKENIZER, None
+
+
+def _load_translation_engine():
+    global _MODEL, _TOKENIZER, _PROCESSOR, _MODEL_DEVICE, _ENGINE_TYPE
     if _MODEL is not None and _TOKENIZER is not None:
-        return _MODEL, _TOKENIZER
+        return _MODEL, _TOKENIZER, _PROCESSOR, _ENGINE_TYPE
 
     with _MODEL_LOCK:
         if _MODEL is not None and _TOKENIZER is not None:
-            return _MODEL, _TOKENIZER
+            return _MODEL, _TOKENIZER, _PROCESSOR, _ENGINE_TYPE
+
+        settings = get_settings()
+        # If HF_TOKEN is present, try IndicTrans2
+        if settings.hf_token:
+            try:
+                m, t, p = _load_indictrans2()
+                _ENGINE_TYPE = "indictrans2"
+                return m, t, p, _ENGINE_TYPE
+            except Exception as exc:
+                logger.warning("IndicTrans2 loading failed with provided HF_TOKEN (%s). Falling back to M2M100.", exc)
+        else:
+            # Try IndicTrans2 first in case cached or ungated
+            try:
+                m, t, p = _load_indictrans2()
+                _ENGINE_TYPE = "indictrans2"
+                return m, t, p, _ENGINE_TYPE
+            except Exception as exc:
+                logger.info(
+                    "Notice: IndicTrans2 is a gated Hugging Face repo (requires token). "
+                    "Auto-fallback to public model '%s'. "
+                    "(To use IndicTrans2: request access at https://huggingface.co/ai4bharat/indictrans2-en-indic-dist-200M "
+                    "and set HF_TOKEN in backend/.env)",
+                    M2M100_MODEL_NAME,
+                )
+
         try:
-            import torch
-            from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
-
-            device = _select_device(torch.cuda.is_available())
-            tokenizer = M2M100Tokenizer.from_pretrained(
-                MODEL_NAME, local_files_only=True
-            )
-            model = M2M100ForConditionalGeneration.from_pretrained(
-                MODEL_NAME, local_files_only=True
-            )
-            model.to(device)
-            model.eval()
-            _MODEL = model
-            _TOKENIZER = tokenizer
-            _MODEL_DEVICE = device
-            logger.info("Loaded local translation model on %s", device.upper())
-        except (ImportError, OSError) as exc:
-            _MODEL = None
-            _TOKENIZER = None
+            m, t, p = _load_m2m100()
+            return m, t, p, _ENGINE_TYPE
+        except Exception as m2m_exc:
+            logger.exception("Fallback translation model loading failed: %s", m2m_exc)
             raise TranslationModelUnavailable(
-                "Local translation is unavailable. Install backend requirements "
-                "and, from the backend folder, run "
-                "`python -m app.download_translation_model` once, then retry. "
-                "Report text is not sent to an external service."
-            ) from exc
-    return _MODEL, _TOKENIZER
+                f"Translation engine unavailable: {m2m_exc}. Please check your internet connection."
+            ) from m2m_exc
 
 
-def _split_into_chunks(text: str, tokenizer) -> list[str]:
+def translate_summary(text: str, language: TargetLanguage) -> str:
+    """Translates clinical summary into Hindi, Marathi, or Tamil using IndicTrans2 or M2M100 fallback."""
+    if language not in LANGUAGES:
+        raise ValueError(f"Unsupported translation language: {language}")
+    if not text.strip():
+        return ""
+
+    with _MODEL_LOCK:
+        model, tokenizer, processor, engine_type = _load_translation_engine()
+        import torch
+
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        translated_paragraphs = []
+
+        if engine_type == "indictrans2" and processor is not None:
+            tgt_lang = INDICTRANS2_TAGS[language]
+            for paragraph in paragraphs:
+                sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", paragraph) if s.strip()]
+                if not sentences:
+                    continue
+
+                batch = processor.preprocess_batch(sentences, src_lang=SRC_LANG, tgt_lang=tgt_lang)
+                inputs = tokenizer(
+                    batch,
+                    padding="longest",
+                    truncation=True,
+                    max_length=256,
+                    return_tensors="pt",
+                ).to(_MODEL_DEVICE)
+
+                with torch.inference_mode():
+                    outputs = model.generate(
+                        **inputs,
+                        num_beams=1,
+                        max_length=256,
+                        repetition_penalty=1.1,
+                        use_cache=False,
+                    )
+
+                decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+                postprocessed = processor.postprocess_batch(decoded, lang=tgt_lang)
+                translated_paragraphs.append(" ".join(postprocessed))
+        else:
+            # M2M100 Fallback Translation
+            tokenizer.src_lang = "en"
+            for paragraph in paragraphs:
+                inputs = tokenizer(
+                    paragraph,
+                    return_tensors="pt",
+                    truncation=True,
+                    max_length=256,
+                ).to(_MODEL_DEVICE)
+
+                with torch.inference_mode():
+                    outputs = model.generate(
+                        **inputs,
+                        forced_bos_token_id=tokenizer.get_lang_id(language),
+                        max_new_tokens=256,
+                        repetition_penalty=1.1,
+                    )
+
+                decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0].strip()
+                translated_paragraphs.append(decoded)
+
+        return "\n\n".join(translated_paragraphs)
+
+
+def _split_into_chunks(text: str) -> list[str]:
+    """Splits document text into readable sections/paragraphs suitable for chunk-by-chunk translation."""
     chunks: list[str] = []
-    for paragraph in re.split(r"\n\s*\n", text):
-        paragraph = paragraph.strip()
-        if not paragraph:
-            continue
-        sentences = re.split(r"(?<=[.!?])\s+", paragraph)
-        current_ids: list[int] = []
-        for sentence in sentences:
-            sentence_ids = tokenizer.encode(sentence, add_special_tokens=False)
-            if not sentence_ids:
-                continue
-            for offset in range(0, len(sentence_ids), _CHUNK_TOKEN_LIMIT):
-                piece = sentence_ids[offset:offset + _CHUNK_TOKEN_LIMIT]
-                if current_ids and len(current_ids) + len(piece) > _CHUNK_TOKEN_LIMIT:
-                    chunks.append(tokenizer.decode(current_ids, skip_special_tokens=True))
-                    current_ids = []
-                current_ids.extend(piece)
-        if current_ids:
-            chunks.append(tokenizer.decode(current_ids, skip_special_tokens=True))
-    return chunks
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    if not paragraphs:
+        cleaned = text.strip()
+        return [cleaned] if cleaned else []
+
+    for paragraph in paragraphs:
+        words = paragraph.split()
+        if len(words) <= 120:
+            chunks.append(paragraph)
+        else:
+            sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", paragraph) if s.strip()]
+            cur_chunk: list[str] = []
+            cur_len = 0
+            for sentence in sentences:
+                s_len = len(sentence.split())
+                if cur_chunk and (cur_len + s_len > 80):
+                    chunks.append(" ".join(cur_chunk))
+                    cur_chunk = [sentence]
+                    cur_len = s_len
+                else:
+                    cur_chunk.append(sentence)
+                    cur_len += s_len
+            if cur_chunk:
+                chunks.append(" ".join(cur_chunk))
+    return chunks or [text.strip()]
 
 
 def translate_text(
@@ -93,46 +363,27 @@ def translate_text(
     on_progress: Callable[[int, int, str], None] | None = None,
     cached_chunks: list[str] | None = None,
 ) -> str:
+    """Translates full extracted document text chunk-by-chunk with real-time section progress callbacks."""
     if language not in LANGUAGES:
         raise ValueError(f"Unsupported translation language: {language}")
     if not text.strip():
         return ""
 
-    import torch
+    chunks = _split_into_chunks(text)
+    total_chunks = len(chunks)
+    translated: list[str] = list(cached_chunks or [])
 
-    with _MODEL_LOCK:
-        model, tokenizer = _load_model()
-        tokenizer.src_lang = "en"
-        chunks = _split_into_chunks(text, tokenizer)
-        translated = list(cached_chunks or [])
-        if len(translated) > len(chunks):
-            raise ValueError("Cached translation does not match the source text")
+    if len(translated) > total_chunks:
+        translated = []
+
+    if on_progress:
+        on_progress(len(translated), total_chunks, "")
+
+    start_idx = len(translated)
+    for idx, chunk in enumerate(chunks[start_idx:], start=start_idx + 1):
+        translated_chunk = translate_summary(chunk, language)
+        translated.append(translated_chunk)
         if on_progress:
-            on_progress(len(translated), len(chunks), "")
-        for index, chunk in enumerate(chunks[len(translated):], start=len(translated) + 1):
-            encoded = tokenizer(
-                chunk,
-                return_tensors="pt",
-                truncation=True,
-                max_length=_CHUNK_TOKEN_LIMIT + 2,
-            )
-            encoded = {
-                key: value.to(_MODEL_DEVICE) for key, value in encoded.items()
-            }
-            input_length = int(encoded["input_ids"].shape[-1])
-            with torch.inference_mode():
-                generated = model.generate(
-                    **encoded,
-                    forced_bos_token_id=tokenizer.get_lang_id(language),
-                    max_new_tokens=min(512, max(64, int(input_length * 1.5) + 32)),
-                    num_beams=1,
-                    no_repeat_ngram_size=3,
-                    repetition_penalty=1.1,
-                )
-            translated_chunk = tokenizer.batch_decode(
-                generated, skip_special_tokens=True
-            )[0].strip()
-            translated.append(translated_chunk)
-            if on_progress:
-                on_progress(index, len(chunks), translated_chunk)
-    return "\n\n".join(part for part in translated if part)
+            on_progress(idx, total_chunks, translated_chunk)
+
+    return "\n\n".join(translated)
