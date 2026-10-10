@@ -62,6 +62,8 @@ def _load_indictrans2():
     if _MODEL is not None and _TOKENIZER is not None and _PROCESSOR is not None:
         return _MODEL, _TOKENIZER, _PROCESSOR
 
+    import sys
+    import types
     import torch
     import transformers
     import transformers.tokenization_utils
@@ -70,6 +72,67 @@ def _load_indictrans2():
     # Compatibility shim for IndicTransToolkit with modern Transformers
     if not hasattr(transformers.tokenization_utils, "PreTrainedTokenizerBase"):
         transformers.tokenization_utils.PreTrainedTokenizerBase = transformers.PreTrainedTokenizerBase
+
+    from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+    if not hasattr(PreTrainedTokenizerBase, "_patched_for_indictrans"):
+        _orig_tokenizer_new = PreTrainedTokenizerBase.__new__
+        def _patched_tokenizer_new(cls, *args, **kwargs):
+            instance = _orig_tokenizer_new(cls)
+            instance._special_tokens_map = dict.fromkeys(instance.SPECIAL_TOKENS_ATTRIBUTES)
+            return instance
+        PreTrainedTokenizerBase.__new__ = _patched_tokenizer_new
+        PreTrainedTokenizerBase._patched_for_indictrans = True
+
+    # Compatibility shim for IndicTrans2 configuration importing deprecated transformers.onnx
+    if "transformers.onnx" not in sys.modules:
+        onnx_mod = types.ModuleType("transformers.onnx")
+        onnx_utils = types.ModuleType("transformers.onnx.utils")
+        onnx_mod.OnnxConfig = type("OnnxConfig", (), {})
+        onnx_mod.OnnxSeq2SeqConfigWithPast = type("OnnxSeq2SeqConfigWithPast", (onnx_mod.OnnxConfig,), {})
+        onnx_utils.compute_effective_axis_dimension = lambda *a, **k: 1
+        onnx_mod.utils = onnx_utils
+        sys.modules["transformers.onnx"] = onnx_mod
+        sys.modules["transformers.onnx.utils"] = onnx_utils
+        transformers.onnx = onnx_mod
+
+    # Compatibility shim for PreTrainedModel._tie_or_clone_weights in transformers v5+
+    from transformers.modeling_utils import PreTrainedModel
+    if not hasattr(PreTrainedModel, "_tie_or_clone_weights"):
+        def _compat_tie_or_clone(self, output_embeddings, input_embeddings):
+            output_embeddings.weight = input_embeddings.weight
+        PreTrainedModel._tie_or_clone_weights = _compat_tie_or_clone
+
+    # Compatibility shim for IndicTransForConditionalGeneration.tie_weights keyword arguments in transformers v5+
+    import transformers.dynamic_module_utils as dmu
+    import transformers.models.auto.auto_factory as af
+    if not getattr(dmu, "_patched_for_indictrans", False):
+        _orig_get_class = dmu.get_class_from_dynamic_module
+        def _patched_get_class(*args, **kwargs):
+            cls = _orig_get_class(*args, **kwargs)
+            if hasattr(cls, "tie_weights"):
+                _orig_tie = cls.tie_weights
+                if not getattr(_orig_tie, "_is_patched", False):
+                    def _compat_tie(self, *a, **kw):
+                        return _orig_tie(self)
+                    _compat_tie._is_patched = True
+                    cls.tie_weights = _compat_tie
+            return cls
+        dmu.get_class_from_dynamic_module = _patched_get_class
+        af.get_class_from_dynamic_module = _patched_get_class
+        dmu._patched_for_indictrans = True
+
+    # Also patch any existing classes already loaded into sys.modules
+    for _mod in list(sys.modules.values()):
+        if _mod and "indictrans" in getattr(_mod, "__name__", ""):
+            for _attr in dir(_mod):
+                _c = getattr(_mod, _attr, None)
+                if isinstance(_c, type) and hasattr(_c, "tie_weights"):
+                    _orig = _c.tie_weights
+                    if not getattr(_orig, "_is_patched", False):
+                        def _w(self, *a, **kw):
+                            return _orig(self)
+                        _w._is_patched = True
+                        _c.tie_weights = _w
 
     from IndicTransToolkit.processor import IndicProcessor
 
@@ -143,6 +206,8 @@ def _load_m2m100():
         model.to("cpu")
 
     model.eval()
+    if hasattr(model, "generation_config") and model.generation_config is not None:
+        model.generation_config.max_length = None
     _MODEL = model
     _TOKENIZER = tokenizer
     _PROCESSOR = None
@@ -231,6 +296,7 @@ def translate_summary(text: str, language: TargetLanguage) -> str:
                         num_beams=1,
                         max_length=256,
                         repetition_penalty=1.1,
+                        use_cache=False,
                     )
 
                 decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)

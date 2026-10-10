@@ -214,27 +214,26 @@ async def upload_document(
                         processing_status="translating" if summary else "completed",
                         translations_status={"hi": "pending", "mr": "pending", "ta": "pending"} if summary else {},
                     )
-                    db.add(document)
+                    async with SessionLocal() as session:
+                        session.add(document)
+                        conversation = Conversation(
+                            id=uuid4(),
+                            document_id=document.id,
+                            user_id=user.id,
+                        )
+                        session.add(conversation)
 
-                    conversation = Conversation(
-                        id=uuid4(),
-                        document_id=document.id,
-                        user_id=user.id,
-                    )
-                    db.add(conversation)
+                        if summary:
+                            jobs = [
+                                TranslationJob(id=uuid4(), document_id=document.id, language="hi", order_index=0, status="pending"),
+                                TranslationJob(id=uuid4(), document_id=document.id, language="mr", order_index=1, status="pending"),
+                                TranslationJob(id=uuid4(), document_id=document.id, language="ta", order_index=2, status="pending"),
+                            ]
+                            session.add_all(jobs)
 
-                    if summary:
-                        jobs = [
-                            TranslationJob(id=uuid4(), document_id=document.id, language="hi", order_index=0, status="pending"),
-                            TranslationJob(id=uuid4(), document_id=document.id, language="mr", order_index=1, status="pending"),
-                            TranslationJob(id=uuid4(), document_id=document.id, language="ta", order_index=2, status="pending"),
-                        ]
-                        db.add_all(jobs)
-
-                    await db.commit()
-                    await db.refresh(document)
-
-                    doc_data = DocumentRead.model_validate(document).model_dump(mode="json")
+                        await session.commit()
+                        await session.refresh(document)
+                        doc_data = DocumentRead.model_validate(document).model_dump(mode="json")
                     emit({
                         "type": "complete",
                         "stage": "completed",

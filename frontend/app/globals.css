@@ -2221,20 +2221,164 @@ button:disabled {
   border-width: 1.6px;
 }
 
-/* --- Real-Time Translation Progress Bar --- */
-.translation-progress-bar {
-  flex: 1;
-  max-width: 160px;
-  height: 6px;
-  background: rgba(57, 119, 100, 0.16);
-  border-radius: 999px;
-  overflow: hidden;
-  margin: 0 8px;
+/* --- Real-Time Translation Progress Feed Block --- */
+.translation-progress-feed {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: #f7faf8;
+  border: 1px solid #d5e5db;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  animation: fadeInProgress 0.25s ease-out;
 }
 
-.translation-progress-fill {
-  height: 100%;
-  background: var(--accent, #397764);
+.translation-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.translation-progress-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.translation-progress-title .lang-pill {
+  padding: 3px 9px;
+  background: var(--ink, #172720);
+  color: #ffffff;
+  border-radius: 6px;
+  font-weight: 650;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.translation-progress-title .hw-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: #eaf3ed;
+  color: #2c6552;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 10.5px;
+}
+
+.translation-progress-header .progress-pill {
+  padding: 3px 9px;
+  background: #e3ede6;
+  color: #2c6552;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+
+.translation-progress-bar-track {
+  width: 100%;
+  height: 6px;
+  background: #e3ede6;
   border-radius: 999px;
-  transition: width 0.3s ease;
+  overflow: hidden;
+}
+
+.translation-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #397764, #52a38b);
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.translation-stages-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+@media (max-width: 640px) {
+  .translation-stages-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.translation-stage-chip {
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: #ffffff;
+  border: 1px solid #e5ebe7;
+  font-size: 10.5px;
+  color: #7a8880;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.translation-stage-chip.active {
+  background: #eaf3ed;
+  border-color: #397764;
+  color: #172720;
+  font-weight: 650;
+  box-shadow: 0 1px 3px rgba(57, 119, 100, 0.12);
+}
+
+.translation-stage-chip.done {
+  background: #f1f8f3;
+  border-color: #a3c9b3;
+  color: #2c6552;
+}
+
+.translation-live-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.translation-current-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #2c6552;
+  font-weight: 500;
+}
+
+.translation-current-status .spinner {
+  width: 13px;
+  height: 13px;
+  border-width: 1.6px;
+}
+
+.translation-chunk-preview {
+  margin-top: 4px;
+  padding: 8px 11px;
+  background: #ffffff;
+  border: 1px solid #e0eae2;
+  border-left: 3px solid #397764;
+  border-radius: 6px;
+  font-size: 11.5px;
+}
+
+.translation-chunk-preview .preview-label {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #73857a;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.translation-chunk-preview .preview-text {
+  margin: 0;
+  color: #172720;
+  line-height: 1.45;
+  font-style: italic;
 }

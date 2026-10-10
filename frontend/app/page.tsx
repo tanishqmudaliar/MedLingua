@@ -255,6 +255,79 @@ function UploadProgressFeed({
   );
 }
 
+function TranslationProgressFeed({
+  language,
+  status,
+  progress,
+  currentChunk,
+}: {
+  language: TranslationLanguage;
+  status: string;
+  progress: { completed: number; total: number } | null;
+  currentChunk?: string;
+}) {
+  const langLabel = language === "hi" ? "हिन्दी (Hindi)" : language === "mr" ? "मराठी (Marathi)" : "தமிழ் (Tamil)";
+  const total = progress?.total || 0;
+  const completed = progress?.completed || 0;
+  const percent = total > 0 ? Math.round((completed / total) * 100) : completed > 0 ? 100 : 15;
+
+  return (
+    <div className="translation-progress-feed" role="status" aria-live="polite">
+      <div className="translation-progress-header">
+        <div className="translation-progress-title">
+          <span className="lang-pill">{langLabel}</span>
+          <span className="hw-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            Local GPU Accelerated (GTX 1650)
+          </span>
+        </div>
+        {total > 0 && (
+          <span className="progress-pill">
+            {completed}/{total} sections ({percent}%)
+          </span>
+        )}
+      </div>
+
+      <div className="translation-progress-bar-track" aria-hidden="true">
+        <div
+          className="translation-progress-bar-fill"
+          style={{ width: `${Math.min(100, Math.max(10, percent))}%` }}
+        />
+      </div>
+
+      <div className="translation-stages-row">
+        <div className={`translation-stage-chip ${completed === 0 ? "active" : "done"}`}>
+          {completed > 0 ? <span style={{ color: "#2c6552", fontWeight: 700 }}>✓</span> : <Spinner />}
+          <span>1. Model Initialized</span>
+        </div>
+        <div className={`translation-stage-chip ${completed > 0 && completed < total ? "active" : completed >= total && total > 0 ? "done" : "pending"}`}>
+          {completed >= total && total > 0 ? <span style={{ color: "#2c6552", fontWeight: 700 }}>✓</span> : completed > 0 ? <Spinner /> : "○"}
+          <span>2. Summary Translated</span>
+        </div>
+        <div className={`translation-stage-chip ${completed > 0 && completed < total ? "active" : completed >= total && total > 0 ? "done" : "pending"}`}>
+          {completed >= total && total > 0 ? <span style={{ color: "#2c6552", fontWeight: 700 }}>✓</span> : completed > 0 ? <Spinner /> : "○"}
+          <span>3. Sections ({completed}/{total || "..."})</span>
+        </div>
+      </div>
+
+      <div className="translation-live-info">
+        <div className="translation-current-status">
+          <Spinner />
+          <span>{status || "Translating report sections into vernacular..."}</span>
+        </div>
+        {currentChunk && (
+          <div className="translation-chunk-preview">
+            <span className="preview-label">Latest translated section:</span>
+            <p className="preview-text">&ldquo;{currentChunk.slice(0, 160)}...&rdquo;</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -942,29 +1015,13 @@ export default function Home() {
                 })}
               </div>
 
-              {translationKey !== null && translationLoadingKey === translationKey && (
-                <div className="translation-status" role="status" aria-live="polite">
-                  <Spinner />
-                  <span>{translationStatus || "Translating locally..."}</span>
-                  {translationProgress && translationProgress.total > 0 && (
-                    <>
-                      <div
-                        className="translation-progress-bar"
-                        title={`${Math.round((translationProgress.completed / translationProgress.total) * 100)}%`}
-                      >
-                        <div
-                          className="translation-progress-fill"
-                          style={{
-                            width: `${Math.round((translationProgress.completed / translationProgress.total) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="progress-count">
-                        {translationProgress.completed}/{translationProgress.total} sections ({Math.round((translationProgress.completed / translationProgress.total) * 100)}%)
-                      </span>
-                    </>
-                  )}
-                </div>
+              {translationKey !== null && translationLoadingKey === translationKey && activeLanguage !== "en" && (
+                <TranslationProgressFeed
+                  language={activeLanguage}
+                  status={translationStatus}
+                  progress={translationProgress}
+                  currentChunk={activeTranslation?.extracted_chunks.slice(-1)[0]}
+                />
               )}
               {translationError && <p className="global-alert translation-alert" role="alert">{translationError}</p>}
 
