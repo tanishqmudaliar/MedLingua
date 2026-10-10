@@ -2382,3 +2382,110 @@ button:disabled {
   line-height: 1.45;
   font-style: italic;
 }
+
+/* ------------------------------------------------------------------------- */
+/* Sequential Translation Queue & Tab Status Styles                          */
+/* ------------------------------------------------------------------------- */
+.queued-progress-feed {
+  margin: 14px 0 16px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  background: #f8faf8;
+  border: 1px solid #dbe6dd;
+  border-left: 4px solid #b78a38;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: arrive 200ms ease;
+}
+
+.queued-pill {
+  background: #fef7ec !important;
+  color: #8c6014 !important;
+  border: 1px solid #ecd8af !important;
+}
+
+.queue-badge-chip {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8c6014;
+  background: #fcf2df;
+  padding: 3px 8px;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
+.queue-pipeline-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.queue-pipeline-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: #63776b;
+}
+
+.queue-chips-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.queue-step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #dce6de;
+  background: #ffffff;
+  color: #6c8074;
+}
+
+.queue-step-chip.active-step {
+  background: #eaf3ed;
+  border-color: #397764;
+  color: #2c6552;
+  font-weight: 700;
+}
+
+.queue-step-chip.target-step {
+  background: #fcf6ea;
+  border-color: #dfcaa2;
+  color: #825b18;
+  font-weight: 700;
+}
+
+.queue-step-chip.waiting-step {
+  opacity: 0.75;
+}
+
+.queued-status-text {
+  color: #556c5f !important;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.button-retranslate:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+.button-retranslate .status-badge.status-translating {
+  background: #eaf3ed;
+  color: #2c6552;
+  border: 1px solid #9dc6ad;
+  animation: pulseBadge 1.5s infinite;
+}
+
+@keyframes pulseBadge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
