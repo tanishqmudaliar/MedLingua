@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: medlingua-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: medlingua
+      POSTGRES_PASSWORD: medlingua
+      POSTGRES_DB: medlingua
+    ports:
+      - "5432:5432"
+    volumes:
+      - medlingua_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medlingua -d medlingua"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  medlingua_postgres:
+    name: medlingua_postgres

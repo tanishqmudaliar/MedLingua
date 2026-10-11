@@ -170,6 +170,8 @@ def _load_indictrans2():
         model.half()
         model.to("cuda")
     else:
+        import os
+        torch.set_num_threads(max(1, min(4, (os.cpu_count() or 4) // 2)))
         model.to("cpu")
 
     model.eval()
@@ -203,6 +205,8 @@ def _load_m2m100():
         model.half()
         model.to("cuda")
     else:
+        import os
+        torch.set_num_threads(max(1, min(4, (os.cpu_count() or 4) // 2)))
         model.to("cpu")
 
     model.eval()
@@ -294,7 +298,7 @@ def translate_summary(text: str, language: TargetLanguage) -> str:
                     outputs = model.generate(
                         **inputs,
                         num_beams=1,
-                        max_length=256,
+                        max_new_tokens=128,
                         repetition_penalty=1.1,
                         use_cache=False,
                     )
@@ -317,8 +321,9 @@ def translate_summary(text: str, language: TargetLanguage) -> str:
                     outputs = model.generate(
                         **inputs,
                         forced_bos_token_id=tokenizer.get_lang_id(language),
-                        max_new_tokens=256,
+                        max_new_tokens=128,
                         repetition_penalty=1.1,
+                        use_cache=False,
                     )
 
                 decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0].strip()
