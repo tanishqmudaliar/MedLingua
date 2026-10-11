@@ -62,7 +62,7 @@ def _call_ollama_generate(
     prompt: str,
     system_prompt: str | None = None,
     stream: bool = False,
-    timeout: int = 120,
+    timeout: int = 300,
 ) -> dict:
     settings = get_settings()
     payload = {
@@ -114,7 +114,7 @@ def generate_document_summary(extracted_text: str) -> tuple[str, str]:
 
     with _INFERENCE_LOCK:
         try:
-            res = _call_ollama_generate(prompt=prompt, timeout=90)
+            res = _call_ollama_generate(prompt=prompt, timeout=300)
             raw_text = res.get("response", "").strip()
             # Clean out conversational preamble if the LLM produced one
             summary_text = re.sub(
@@ -213,7 +213,7 @@ async def stream_chatbot_response(
         loop = asyncio.get_running_loop()
 
         def sync_fetch_stream():
-            return urllib.request.urlopen(req, timeout=120)
+            return urllib.request.urlopen(req, timeout=300)
 
         resp = await asyncio.to_thread(sync_fetch_stream)
 

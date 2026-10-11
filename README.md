@@ -39,6 +39,7 @@ MedLingua is a private, local-first medical natural language processing platform
 - [Real-Time Interactive Streaming Feeds](#real-time-interactive-streaming-feeds)
 - [Complete Technology Stack & Dependency Audit](#complete-technology-stack--dependency-audit)
 - [Automated Toolchain, Diagnostics & Orchestration](#automated-toolchain-diagnostics--orchestration)
+- [Docker Quickstart & Zero-Trace Cleanup](#docker-quickstart--zero-trace-cleanup)
 - [Getting Started & Local Development](#getting-started--local-development)
 - [Production Deployment Guide (Zero-Cost Cloud Architecture)](#production-deployment-guide-zero-cost-cloud-architecture)
 - [API Reference](#api-reference)
@@ -583,6 +584,57 @@ A hardware-optimized Windows orchestrator that executes a 7-step startup:
 5. **[5/7] Hugging Face Model Verification:** Checks model caches and downloads missing weights.
 6. **[6/7] Database Migrations:** Applies all Alembic revisions (`alembic upgrade head`) up to `0004_chat_and_queue`.
 7. **[7/7] Preflight & Multi-Server Launch:** Runs `preflight.py` audit, then opens the FastAPI backend and Next.js frontend in separate terminal windows.
+
+---
+
+## Docker Quickstart & Zero-Trace Cleanup
+
+MedLingua provides a 100% self-contained Docker environment that builds and runs **PostgreSQL**, **Ollama + Llama 3.2 3B**, the **FastAPI backend with PyTorch & Neural Translation**, and the **Next.js frontend** entirely inside Docker with zero host dependencies required.
+
+### 1. Launch All-in-One AI Stack (1 Command)
+
+**Windows:** Double-click or run:
+```cmd
+run_docker.bat
+```
+
+**macOS / Linux:** Run:
+```bash
+chmod +x run_docker.sh
+./run_docker.sh
+```
+*(Or run `docker compose up --build` directly)*
+
+#### What Happens on First Launch:
+1. **PostgreSQL 16** starts on `localhost:5432` and Alembic automatically applies all database schema migrations.
+2. **Ollama Container** starts on `localhost:11434` and the init service automatically downloads and caches `llama3.2:3b` (~2.0 GB).
+3. **Python FastAPI Backend** builds with PyTorch and neural translation tools on `http://localhost:8000`.
+4. **Next.js Frontend** builds and starts on `http://localhost:3000`.
+
+> **Note on Initial Download Size (~10–12 GB):**
+> Containerizing modern AI workloads (full GPU/CPU inference runtimes, PyTorch, Ollama, and Llama 3.2 weights) requires ~10–12 GB of total Docker image and volume storage.
+> This download is **one-time only**. Subsequent launches boot in under 10 seconds using cached Docker volumes.
+
+**Access URLs:**
+* **Frontend Web App:** [http://localhost:3000](http://localhost:3000)
+* **Interactive API Documentation:** [http://localhost:8000/docs](http://localhost:8000/docs)
+* **Ollama API:** [http://localhost:11434](http://localhost:11434)
+
+### 2. Zero-Trace Cleanup (Remove Everything Cleanly)
+When you are done testing and want to completely wipe all downloaded model weights, database data, containers, and images from your disk:
+
+* **Windows:** Double-click or run:
+  ```cmd
+  clean_docker.bat
+  ```
+* **macOS / Linux:** Run:
+  ```bash
+  chmod +x clean_docker.sh
+  ./clean_docker.sh
+  ```
+This purges 100% of MedLingua Docker containers, volumes, and images, leaving **0 MB** behind on your computer. (Your host machine's local files, Python `.venv`, and personal Ollama caches are never touched).
+
+*(On Windows, to reclaim the virtual disk size allocated by Docker Desktop immediately, open Docker Desktop > Troubleshoot (bug icon 🐞) > "Clean / Purge data" or "Compact disk").*
 
 ---
 

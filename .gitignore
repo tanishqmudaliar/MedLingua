@@ -43,7 +43,4 @@ Thumbs.db
 *.tsbuildinfo
 
 # Internal audit guides and notes
-MEDLINGUA_AUDIT_AND_NLP_GUIDE.md
-*audit*.md
-*AUDIT*.md
-
+AUDIT.md

@@ -210,7 +210,7 @@ if "%~1"=="--download-indictrans" (
 echo.
 echo [5/7] Starting PostgreSQL database container and running migrations...
 
-docker compose up -d postgres
+docker compose -f docker-compose.postgres.yml up -d
 if errorlevel 1 (
     echo [ERROR] Could not start PostgreSQL container via Docker Compose.
     goto :failed
@@ -219,7 +219,7 @@ if errorlevel 1 (
 echo Waiting for PostgreSQL to accept connections...
 set /a ATTEMPTS=0
 :wait_for_postgres
-docker compose exec -T postgres pg_isready -U medlingua -d medlingua >nul 2>&1
+docker compose -f docker-compose.postgres.yml exec -T postgres pg_isready -U medlingua -d medlingua >nul 2>&1
 if not errorlevel 1 goto postgres_ready
 set /a ATTEMPTS+=1
 if %ATTEMPTS% GEQ 30 goto postgres_timeout
@@ -302,8 +302,8 @@ echo   - Preflight Diagnostic:   cd backend ^& .venv\Scripts\python -m app.prefl
 echo   - Download Translation:   cd backend ^& .venv\Scripts\python -m app.download_translation_model
 echo.
 echo   [Tip] Keep the Backend and Frontend terminal windows open while using the app.
-echo   [Tip] To stop all services, close the terminal windows and run:
-echo         docker compose stop
+echo   [Tip] To stop PostgreSQL when finished, run:
+echo         docker compose -f docker-compose.postgres.yml stop
 echo.
 popd
 exit /b 0

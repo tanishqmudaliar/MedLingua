@@ -49,6 +49,7 @@ huggingface_hub==1.33.0
 idna==3.20
 ImageIO==2.38.0
 imagesize==2.0.1
+imgaug==0.4.0
 indic-nlp-library-itt==0.1.1
 indictranstoolkit==1.1.1
 iniconfig==2.3.1
@@ -73,8 +74,8 @@ numpy==1.26.4
 opencv-contrib-python==4.8.1.78
 opencv-python==4.8.1.78
 opencv-python-headless==4.10.0.84
-opentelemetry-api==1.45.1
 openpyxl==3.1.5
+opentelemetry-api==1.45.1
 opt-einsum==3.3.0
 packaging==26.3
 paddleocr==2.8.1

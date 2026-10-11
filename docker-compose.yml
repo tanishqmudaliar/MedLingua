@@ -1,6 +1,8 @@
 services:
   postgres:
     image: postgres:16
+    container_name: medlingua-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: medlingua
       POSTGRES_PASSWORD: medlingua
@@ -9,7 +11,124 @@ services:
       - "5432:5432"
     volumes:
       - medlingua_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medlingua -d medlingua"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: medlingua-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - medlingua_ollama_models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  ollama-puller:
+    image: ollama/ollama:latest
+    container_name: medlingua-ollama-puller
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "until ollama list >/dev/null 2>&1; do
+         echo '[Ollama Init] Waiting for Ollama engine to start...';
+         sleep 2;
+       done &&
+       echo '===============================================================================' &&
+       echo ' [Ollama Init] Checking Llama 3.2 3B model in Docker cache...' &&
+       ollama pull llama3.2:3b &&
+       echo '===============================================================================' &&
+       echo ' [Ollama Init] Pre-warming Llama 3.2 3B into memory for instant inference...' &&
+       ollama run llama3.2:3b 'Ready' --keepalive 24h &&
+       echo '===============================================================================' &&
+       echo ' [Ollama Init] SUCCESS: Llama 3.2 3B model is cached and ready for inference!' &&
+       echo '==============================================================================='"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: medlingua-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://medlingua:medlingua@postgres:5432/medlingua
+      - JWT_SECRET_KEY=medlingua-docker-secret-key-32chars-min-change-in-prod
+      - JWT_EXPIRE_MINUTES=1440
+      - UPLOAD_DIR=/app/uploads
+      - MAX_UPLOAD_SIZE_MB=20
+      - MAX_PDF_PAGES=20
+      - FRONTEND_ORIGIN=http://localhost:3000
+      - LLM_PROVIDER=ollama
+      - LLM_MODEL=llama3.2:3b
+      - LLM_NUM_CTX=2048
+      - LLM_MAX_OUTPUT_TOKENS=768
+      - LLM_GPU_REQUIRED=false
+      - LLM_API_BASE=http://ollama:11434
+      - SUMMARY_FALLBACK_ENABLED=true
+      - INDICTRANS_MODEL_NAME=ai4bharat/indictrans2-en-indic-dist-200M
+      - INDICTRANS_DEVICE=auto
+      - HF_HOME=/root/.cache/huggingface
+    volumes:
+      - medlingua_uploads:/app/uploads
+      - medlingua_hf_cache:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/docs || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: medlingua-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
 
 volumes:
   medlingua_postgres:
-
+    name: medlingua_postgres
+  medlingua_ollama_models:
+    name: medlingua_ollama_models
+  medlingua_uploads:
+    name: medlingua_uploads
+  medlingua_hf_cache:
+    name: medlingua_hf_cache
