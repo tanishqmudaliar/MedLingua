@@ -9,9 +9,17 @@ _ocr = None
 def get_ocr():
     global _ocr
     if _ocr is None:
+        import paddleocr.paddleocr
+        from .config import cleanup_user_cache_artifacts, get_settings
+
+        settings = get_settings()
+        paddleocr_dir = str(settings.resolved_paddleocr_dir)
+        paddleocr.paddleocr.BASE_DIR = paddleocr_dir
+
         from paddleocr import PaddleOCR
 
         _ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False, use_gpu=False)
+        cleanup_user_cache_artifacts()
     return _ocr
 
 
