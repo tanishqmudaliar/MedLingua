@@ -16,6 +16,7 @@ env/
 # Local uploads and OCR model data
 backend/uploads/
 .paddleocr/
+.cache/
 
 # Node / Next.js
 frontend/node_modules/
