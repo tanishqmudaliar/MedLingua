@@ -73,7 +73,8 @@ def apply_transformers_compatibility_shims() -> None:
 
 def get_cache_info(repo_id: str) -> dict:
     """Calculates disk size and file list of a cached repo in huggingface/hub."""
-    cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
+    settings = get_settings()
+    cache_dir = settings.resolved_hf_home / "hub"
     repo_folder_name = "models--" + repo_id.replace("/", "--")
     repo_path = cache_dir / repo_folder_name
     if not repo_path.exists():

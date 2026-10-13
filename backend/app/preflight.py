@@ -73,24 +73,27 @@ def check_ollama(api_base: str, expected_model: str) -> tuple[bool, str]:
         return False, f"Error: {exc}"
 
 
+async def _connect_and_check(db_url: str) -> list[str]:
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = create_async_engine(db_url)
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
+        res = await conn.execute(
+            text(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = 'public' ORDER BY table_name"
+            )
+        )
+        tables = [row[0] for row in res.fetchall()]
+    await engine.dispose()
+    return tables
+
+
 async def check_database(db_url: str) -> tuple[bool, str]:
     try:
-        from sqlalchemy import text
-        from sqlalchemy.ext.asyncio import create_async_engine
-
-        engine = create_async_engine(db_url)
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-            # Check tables
-            res = await conn.execute(
-                text(
-                    "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema = 'public' ORDER BY table_name"
-                )
-            )
-            tables = [row[0] for row in res.fetchall()]
-        await engine.dispose()
-
+        tables = await asyncio.wait_for(_connect_and_check(db_url), timeout=3.0)
         expected = {"users", "documents", "translation_jobs", "conversations", "chat_messages"}
         missing = expected - set(tables)
         if not missing:
@@ -108,11 +111,26 @@ def check_translation_models() -> tuple[bool, str]:
     m2m_info = get_cache_info(M2M100_MODEL)
 
     if indic_info["has_weights"]:
-        return True, f"Primary engine ({INDICTRANS2_MODEL}) weights ready ({indic_info['size_mb']} MB)"
+        return True, f"Primary engine ({INDICTRANS2_MODEL}) weights ready ({indic_info['size_mb']} MB in .cache)"
     elif m2m_info["has_weights"]:
-        return True, f"Offline fallback engine ({M2M100_MODEL}) weights ready ({m2m_info['size_mb']} MB)"
+        return True, f"Offline fallback engine ({M2M100_MODEL}) weights ready ({m2m_info['size_mb']} MB in .cache)"
     else:
         return False, "No translation model weights in cache. Run 'python -m app.download_translation_model'"
+
+
+def check_ocr_models() -> tuple[bool, str]:
+    from .config import get_settings
+
+    settings = get_settings()
+    ocr_dir = settings.resolved_paddleocr_dir
+    whl_dir = ocr_dir / "whl"
+    if whl_dir.exists():
+        files = [f for f in whl_dir.glob("**/*") if f.is_file()]
+        size_mb = sum(f.stat().st_size for f in files) / (1024 * 1024)
+        has_models = any(f.name.endswith(".pdmodel") for f in files)
+        if has_models:
+            return True, f"PaddleOCR models verified ({round(size_mb, 1)} MB in .cache/paddleocr)"
+    return False, "PaddleOCR weights missing. They will download on first OCR request."
 
 
 def main() -> int:
@@ -153,6 +171,13 @@ def main() -> int:
         print_badge("Translation Weights", "PASS", GREEN, trans_info)
     else:
         print_badge("Translation Weights", "WARN", YELLOW, trans_info)
+
+    # 5. OCR Engine
+    ocr_ok, ocr_info = check_ocr_models()
+    if ocr_ok:
+        print_badge("OCR Weights", "PASS", GREEN, ocr_info)
+    else:
+        print_badge("OCR Weights", "WARN", YELLOW, ocr_info)
 
     print("\n" + "-" * 78)
     if not has_critical_error:
