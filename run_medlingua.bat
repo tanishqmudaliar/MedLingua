@@ -4,6 +4,16 @@ title MedLingua Orchestrator - Hardware-Optimized Clinical AI
 set "ROOT=%~dp0"
 pushd "%ROOT%"
 
+:: Enforce project-local model caches and inference storage
+set "HF_HOME=%ROOT%.cache\huggingface"
+set "TRANSFORMERS_CACHE=%ROOT%.cache\huggingface"
+set "TORCH_HOME=%ROOT%.cache\torch"
+set "PADDLEOCR_BASE_DIR=%ROOT%.cache\paddleocr"
+
+if not exist "%ROOT%.cache\huggingface" mkdir "%ROOT%.cache\huggingface" >nul 2>&1
+if not exist "%ROOT%.cache\paddleocr" mkdir "%ROOT%.cache\paddleocr" >nul 2>&1
+if not exist "%ROOT%.cache\torch" mkdir "%ROOT%.cache\torch" >nul 2>&1
+
 :: Enable UTF-8 codepage for clean UI rendering
 chcp 65001 >nul 2>&1
 

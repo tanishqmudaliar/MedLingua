@@ -15,8 +15,8 @@ echo   [x] Stop and remove all MedLingua containers (frontend, backend, postgres
 echo   [x] Delete all persistent Docker volumes (database data, model weights, uploads)
 echo   [x] Remove all Docker images and build caches
 echo.
-echo NOTE: Your host machine's local Python virtual environment (.venv), local Ollama,
-echo       and local node_modules will NOT be affected.
+echo NOTE: Your host machine's local Python virtual environment (.venv), local model cache (.cache),
+echo       local Ollama, and local node_modules will NOT be affected.
 echo.
 set "CONFIRM="
 set /p CONFIRM="Proceed with complete Docker purge? [y/N]: "
